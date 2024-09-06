@@ -27,10 +27,11 @@ class Domain:
         self.axioms = axioms
         self.axiom_counter = 0
 
-    def add_axiom(self, parameters, condition):
+    def add_axiom(self, parameters, condition, legality):
         name = "new-axiom@%d" % self.axiom_counter
         self.axiom_counter += 1
-        axiom = axioms.Axiom(name, parameters, len(parameters), condition)
+        axiom = axioms.Axiom(name, parameters, len(parameters), condition,
+                             legality)
         self.predicates.append(predicates.Predicate(name, parameters))
         self.axioms.append(axiom)
         return axiom

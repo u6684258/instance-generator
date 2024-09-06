@@ -2,6 +2,7 @@
 
 import sys
 
+import normalize
 import pddl
 import pddl_parser
 
@@ -13,6 +14,13 @@ def main():
     domain_file = sys.argv[1]
     domain = pddl_parser.open(domain_file)
     domain.dump()
+    print()
+
+    print("Normalizing axioms to Stratified Datalog")
+    # TODO verify stratification?
+    normalize.normalize_axioms(domain)
+    domain.dump()
+
 
 
 if __name__ == "__main__":
