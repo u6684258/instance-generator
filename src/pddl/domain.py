@@ -4,7 +4,6 @@ from . import axioms
 from . import predicates
 from .axioms import Axiom
 from .conditions import Atom, Condition
-from .f_expression import Assign
 from .functions import Function
 from .pddl_types import Type, TypedObject
 from .predicates import Predicate
