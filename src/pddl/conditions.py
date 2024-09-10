@@ -265,6 +265,31 @@ class Literal(Condition):
         return self.__class__(self.predicate, new_args)
     def free_variables(self):
         return {arg for arg in self.args if arg[0] == "?"}
+    def asp_string(self):
+        args = []
+        for arg in self.args:
+            if arg[0] == "?":
+                # variables in clingo start with an uppercase letter
+                # (potentially preceded by underscores '_') and may not contain
+                # symbols other than those in [A-Za-z0-9_’]
+                # TODO thoroughly check for symbols other than those
+#                args.append(arg[1].upper() + arg[2:])
+                args.append(arg[1:].upper())
+            else:
+                # constants in clingo start with a lowercase letter
+                # (potentially preceded by underscores '_') and may not contain
+                # symbols other than those in [A-Za-z0-9_’]
+                # TODO thoroughly check for symbols other than those
+                args.append(arg[0].lower() + arg[1:])
+        arg_string = ", ".join(args)
+
+        if self.predicate == "=":
+            assert len(args) == 2
+            neg = "!" if self.negated else ""
+            return f"{args[0]} {neg}= {args[1]}"
+
+        neg = "not " if self.negated else ""
+        return f"{neg}{self.predicate.lower()}({arg_string})" # TODO thoroughly check predicate adheres to clingo syntax
 
 class Atom(Literal):
     negated = False
