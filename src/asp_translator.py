@@ -7,7 +7,6 @@ from pddl import TypedObject
 
 def to_asp_predicate(pddl_predicate_name: str):
     # TODO ensure that string adheres to clingo syntax for constants
-    # TODO this must be same translation as in pddl.Literal.asp_string
     return pddl_predicate_name.lower()
 
 
@@ -123,9 +122,9 @@ class ASPGenerator:
 
         # add the basic predicates to choice rule
         for p in self.basic_predicates:
-            arguments = [variables[i] for i in range(p.get_arity())]
+            parameters = [variables[i] for i in range(p.get_arity())]
             predicate_name = to_asp_predicate(p.name)
-            head_parts.append(predicate_name + "(" + ", ".join(arguments) + ")")
+            head_parts.append(predicate_name + "(" + ", ".join(parameters) + ")")
         head = "{" + ", ".join(head_parts) + "}"
 
         # make rule safe
@@ -138,7 +137,8 @@ class ASPGenerator:
 
 
     def generate_axioms(self):
-        axioms = [axiom.asp_string(to_asp_predicate, to_asp_term) for axiom in self.domain.axioms]
+        axioms = [axiom.asp_string(to_asp_predicate, to_asp_term) for axiom in
+                self.domain.axioms]
 
         # integrity constraint that enforces legality
         legality_predicate = to_asp_predicate(self.domain.legality_predicate)

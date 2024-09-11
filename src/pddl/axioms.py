@@ -23,13 +23,21 @@ class Axiom:
     def asp_string(self, predicate_conversion, term_conversion):
         assert type(self.condition) in [conditions.Conjunction,
                 conditions.Atom, conditions.NegatedAtom]
+
         head_parameters = self.parameters[:self.num_external_parameters]
         head_parameters_string = ", ".join(term_conversion(param.name) for param in
                 head_parameters)
         head = f"{self.name}({head_parameters_string})"
-        # TODO what to do if parameters have a type other than the generic
-        # "object"? add an atom for this to the condition?
+
         body = self.condition.asp_string(predicate_conversion, term_conversion)
+        # TODO add type-atoms only for parameters that do not have generic
+        # type? adding it for all parameters automatically makes rule safe though
+        if len(head_parameters) >= 1:
+            parameter_type_atoms = ", ".join(
+                    [f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
+                        for param in head_parameters])
+            body = body + ", " + parameter_type_atoms
+
         rule = f"{head} :- {body}."
         return rule
 
