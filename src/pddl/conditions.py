@@ -138,6 +138,10 @@ class Conjunction(JunctorCondition):
             part.instantiate(var_mapping, init_facts, fluent_facts, result)
     def negate(self):
         return Disjunction([p.negate() for p in self.parts])
+    def asp_string(self, predicate_conversion, term_conversion):
+        assert all(isinstance(p, Literal) for p in self.parts)
+        return ", ".join(p.asp_string(predicate_conversion, term_conversion)
+                         for p in self.parts)
 
 class Disjunction(JunctorCondition):
     def _simplified(self, parts):
@@ -265,31 +269,15 @@ class Literal(Condition):
         return self.__class__(self.predicate, new_args)
     def free_variables(self):
         return {arg for arg in self.args if arg[0] == "?"}
-    def asp_string(self):
-        args = []
-        for arg in self.args:
-            if arg[0] == "?":
-                # variables in clingo start with an uppercase letter
-                # (potentially preceded by underscores '_') and may not contain
-                # symbols other than those in [A-Za-z0-9_’]
-                # TODO thoroughly check for symbols other than those
-#                args.append(arg[1].upper() + arg[2:])
-                args.append(arg[1:].upper())
-            else:
-                # constants in clingo start with a lowercase letter
-                # (potentially preceded by underscores '_') and may not contain
-                # symbols other than those in [A-Za-z0-9_’]
-                # TODO thoroughly check for symbols other than those
-                args.append(arg[0].lower() + arg[1:])
-        arg_string = ", ".join(args)
-
+    def asp_string(self, predicate_conversion, term_conversion):
         if self.predicate == "=":
-            assert len(args) == 2
+            assert len(self.args) == 2
             neg = "!" if self.negated else ""
-            return f"{args[0]} {neg}= {args[1]}"
+            return f"{term_conversion(self.args[0])} {neg}= {term_conversion(self.args[1])}"
 
+        args = ", ".join(term_conversion(arg) for arg in self.args)
         neg = "not " if self.negated else ""
-        return f"{neg}{self.predicate.lower()}({arg_string})" # TODO thoroughly check predicate adheres to clingo syntax
+        return f"{neg}{predicate_conversion(self.predicate)}({args})"
 
 class Atom(Literal):
     negated = False
