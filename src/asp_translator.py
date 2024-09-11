@@ -4,6 +4,43 @@ from pddl import Predicate
 from pddl import Type
 from pddl import TypedObject
 
+
+def to_asp_predicate(pddl_predicate_name: str):
+    # TODO ensure that string adheres to clingo syntax for constants
+    # TODO this must be same translation as in pddl.Literal.asp_string
+    return pddl_predicate_name.lower()
+
+
+def to_asp_object(pddl_object: str):
+    # TODO ensure that string adheres to clingo syntax for constants or is integer
+    
+    # constants in clingo start with a lowercase letter
+    # (potentially preceded by underscores '_') and may not contain
+    # symbols other than those in [A-Za-z0-9_’]
+    # TODO thoroughly check for symbols other than those
+    #
+    # We transform the entire object to lower case so that "obj", "OBJ" and
+    # "Obj" (identical objects in PDDL) are mapped to the same transformed
+    # string.
+    return pddl_object.lower()
+
+
+def to_asp_variable(pddl_variable: str):
+    # variables in clingo start with an uppercase letter
+    # (potentially preceded by underscores '_') and may not contain
+    # symbols other than those in [A-Za-z0-9_’]
+    # TODO thoroughly check for symbols other than those
+    
+    assert pddl_variable[0] == "?"
+    return pddl_variable[1:].upper()
+
+# transforms objects and variables
+def to_asp_term(pddl_term: str):
+    if pddl_term[0] == "?":
+        return to_asp_variable(pddl_term)
+    else:
+        return to_asp_object(pddl_term)
+
 class ASPGenerator:
     # assumes that domain.axioms are in Datalog form, i. e., rule bodies are
     # (implicitly existentially quantified) conjunctions of literals
@@ -101,7 +138,7 @@ class ASPGenerator:
 
 
     def generate_axioms(self):
-        axioms = [axiom.asp_string() for axiom in self.domain.axioms]
+        axioms = [axiom.asp_string(to_asp_predicate, to_asp_term) for axiom in self.domain.axioms]
 
         # integrity constraint that enforces legality
         legality_predicate = to_asp_predicate(self.domain.legality_predicate)
@@ -116,18 +153,6 @@ class ASPGenerator:
             arity = pred.get_arity()
             statements.append(f"#show {predicate_name}/{arity}.")
         return statements
-
-
-def to_asp_predicate(string: str):
-    # TODO ensure that string adheres to clingo syntax for constants
-    # TODO this must be same translation as in pddl.Literal.asp_string
-    return "pred_" + string
-
-
-def to_asp_object(string: str):
-    # TODO ensure that string adheres to clingo syntax for constants or is integer
-    # TODO this must be same translation as in pddl.Literal.asp_string
-    return "obj_" + string
 
 
 def translate(domain, universe_size=1):
