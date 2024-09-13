@@ -1,3 +1,5 @@
+import sys
+
 import pddl
 
 from pddl import Predicate
@@ -24,7 +26,7 @@ def get_index_of_first_non_underscore(string: str):
     for i in range(len(string)):
         if string[i] != '_':
             return i
-    return None # TODO handle this case in a better way
+    return None
 
 
 def translate_to_asp_predicate(pddl_predicate_name: str):
@@ -46,7 +48,7 @@ def translate_to_asp_predicate(pddl_predicate_name: str):
     # check if first character, potentially after a sequence of underscores
     # '_', is a letter, if not add prefix 'pred_'
     first_non_underscore = get_index_of_first_non_underscore(asp_predicate)
-    if not asp_predicate[first_non_underscore].isalpha():
+    if first_non_underscore is None or not asp_predicate[first_non_underscore].isalpha():
         asp_predicate = "pred_" + asp_predicate
 
     # Predicates in clingo must start with a lower case letter. We transform
@@ -77,7 +79,7 @@ def translate_to_asp_object(pddl_object: str):
     # check if first character, potentially after a sequence of underscores
     # '_', is a letter, if not add prefix 'obj_'
     first_non_underscore = get_index_of_first_non_underscore(asp_object)
-    if not asp_object[first_non_underscore].isalpha():
+    if first_non_underscore is None or not asp_object[first_non_underscore].isalpha():
         asp_object = "obj_" + asp_object
     
     # Objects in clingo must start with a lower case letter. We transform the
@@ -106,7 +108,7 @@ def translate_to_asp_variable(pddl_variable: str):
     # check if first character, potentially after a sequence of underscores
     # '_', is a letter, if not add prefix 'Var_'
     first_non_underscore = get_index_of_first_non_underscore(asp_variable)
-    if not asp_variable[first_non_underscore].isalpha():
+    if first_non_underscore is None or not asp_variable[first_non_underscore].isalpha():
         asp_variable = "Var_" + asp_variable
     
     # Variables in clingo must start with a upper case letter. We transform the
@@ -238,7 +240,7 @@ class ASPGenerator:
 
 def translate(domain: pddl.Domain, universe_size=1):
     if universe_size <= 0:
-        print("Size of universe must be at least 1.")
+        print("Error: Size of universe must be at least 1.")
         sys.exit(1)
 
     asp_generator = ASPGenerator(domain, universe_size)
