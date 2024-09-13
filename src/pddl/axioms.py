@@ -27,7 +27,7 @@ class Axiom:
         head_parameters = self.parameters[:self.num_external_parameters]
         head_parameters_string = ", ".join(term_conversion(param.name) for param in
                 head_parameters)
-        head = f"{self.name}({head_parameters_string})"
+        head = f"{predicate_conversion(self.name)}({head_parameters_string})"
 
         body = self.condition.asp_string(predicate_conversion, term_conversion)
         # TODO add type-atoms only for parameters that do not have generic

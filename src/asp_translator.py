@@ -5,33 +5,95 @@ from pddl import Type
 from pddl import TypedObject
 
 
+def get_forbidden_symbols(string: str):
+    # clingo allows the following symbols for constants and variables: [A-Za-z0-9_’]
+    allowed_symbols = [chr(c) for c in range(ord('a'), ord('z')+1)] + [chr(c)
+            for c in range(ord('A'), ord('Z')+1)] + [str(n) for n in range(10)] + ['_', '’']
+    return [sym for sym in string if sym not in allowed_symbols]
+
+
+def get_index_of_first_non_underscore(string: str):
+    for i in range(len(string)):
+        if string[i] != '_':
+            return i
+
+# TODO find better names for to_asp_... functions
+# translate_to_asp_... ? translate_... ?
 def to_asp_predicate(pddl_predicate_name: str):
-    # TODO ensure that string adheres to clingo syntax for constants
-    return pddl_predicate_name.lower()
+    asp_predicate = pddl_predicate_name
+
+    forbidden_symbols = get_forbidden_symbols(pddl_predicate_name)
+    if len(forbidden_symbols) >= 1:
+        # TODO is there a better option than just removing forbidden symbols?
+        # TODO replace, instead of remove, hyphen '-' because it occurs
+        # frequently in PDDL domains?
+        print(f"WARNING: Predicate {pddl_predicate_name} contains the following forbidden symbols that are removed: {forbidden_symbols}")
+        asp_predicate = ''.join([c for c in pddl_predicate_name if c not in
+            forbidden_symbols])
+
+    # check if first character, potentially after a sequence of underscores
+    # '_', is a letter, if not add prefix 'pred_'
+    first_non_underscore = get_index_of_first_non_underscore(asp_predicate)
+    if not asp_predicate[first_non_underscore].isalpha():
+        asp_predicate = "pred_" + asp_predicate
+
+    # Predicates in clingo must start with a lower case letter. We transform
+    # the entire predicate to lower case so that "pred", "PRED" and "Pred"
+    # (identical predicates in PDDL) are mapped to the same transformed string.
+    return asp_predicate.lower()
 
 
 def to_asp_object(pddl_object: str):
-    # TODO ensure that string adheres to clingo syntax for constants or is integer
+    if all(c.isdigit() for c in pddl_object):
+        # objects in clingo can be (positive) integers
+        return pddl_object
+
+    asp_object = pddl_object
+    forbidden_symbols = get_forbidden_symbols(pddl_object)
+    if len(forbidden_symbols) >= 1:
+        # TODO is there a better option than just removing forbidden symbols?
+        # TODO replace, instead of remove, hyphen '-' because it occurs
+        # frequently in PDDL domains?
+        print(f"WARNING: Object {pddl_object} contains the following forbidden symbols that are removed: {forbidden_symbols}")
+        asp_object = ''.join([c for c in pddl_object if c not in
+            forbidden_symbols])
+
+    # check if first character, potentially after a sequence of underscores
+    # '_', is a letter, if not add prefix 'obj_'
+    first_non_underscore = get_index_of_first_non_underscore(asp_object)
+    if not asp_object[first_non_underscore].isalpha():
+        asp_object = "obj_" + asp_object
     
-    # constants in clingo start with a lowercase letter
-    # (potentially preceded by underscores '_') and may not contain
-    # symbols other than those in [A-Za-z0-9_’]
-    # TODO thoroughly check for symbols other than those
-    #
-    # We transform the entire object to lower case so that "obj", "OBJ" and
-    # "Obj" (identical objects in PDDL) are mapped to the same transformed
-    # string.
-    return pddl_object.lower()
+    # Objects in clingo must start with a lower case letter. We transform the
+    # entire object to lower case so that "obj", "OBJ" and "Obj" (identical
+    # objects in PDDL) are mapped to the same transformed string.
+    return asp_object.lower()
 
 
 def to_asp_variable(pddl_variable: str):
-    # variables in clingo start with an uppercase letter
-    # (potentially preceded by underscores '_') and may not contain
-    # symbols other than those in [A-Za-z0-9_’]
-    # TODO thoroughly check for symbols other than those
-    
     assert pddl_variable[0] == "?"
-    return pddl_variable[1:].upper()
+    asp_variable = pddl_variable[1:]
+
+    forbidden_symbols = get_forbidden_symbols(asp_variable)
+    if len(forbidden_symbols) >= 1:
+        # TODO is there a better option than just removing forbidden symbols?
+        # TODO replace, instead of remove, hyphen '-' because it occurs
+        # frequently in PDDL domains?
+        print(f"WARNING: Variable {asp_variable} contains the following forbidden symbols that are removed: {forbidden_symbols}")
+        asp_variable = ''.join([c for c in asp_variable if c not in
+            forbidden_symbols])
+
+    # check if first character, potentially after a sequence of underscores
+    # '_', is a letter, if not add prefix 'Var_'
+    first_non_underscore = get_index_of_first_non_underscore(asp_variable)
+    if not asp_variable[first_non_underscore].isalpha():
+        asp_variable = "Var_" + asp_variable
+    
+    # Variables in clingo must start with a upper case letter. We transform the
+    # entire variable to lower case so that "var", "VAR" and "Var" (identical
+    # variables in PDDL) are mapped to the same transformed string.
+    return asp_variable.upper()
+
 
 # transforms objects and variables
 def to_asp_term(pddl_term: str):
@@ -40,11 +102,10 @@ def to_asp_term(pddl_term: str):
     else:
         return to_asp_object(pddl_term)
 
+
 class ASPGenerator:
     # assumes that domain.axioms are in Datalog form, i. e., rule bodies are
     # (implicitly existentially quantified) conjunctions of literals
-    # TODO adhere to clingo-syntax, i. e., predicates must start with lowercase
-    # letter, variables with uppercase, dash '-' is not allowed
     def __init__(self, domain: pddl.Domain, universe_size = 1):
         self.domain = domain
         self.universe_size = universe_size
