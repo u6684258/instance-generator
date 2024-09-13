@@ -37,6 +37,10 @@ class Axiom:
                     [f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
                         for param in head_parameters])
             body = body + ", " + parameter_type_atoms
+        # TODO make (remaining) rules safe
+        # if condition is Atom: nothing to do
+        # if condition is NegatedAtom: add type-atoms for all parameters of the NegatedAtom
+        # if condition is Conjunction: add type-atoms for all parameters that occur only in NegatedAtoms
 
         rule = f"{head} :- {body}."
         return rule

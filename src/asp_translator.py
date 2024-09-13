@@ -5,6 +5,14 @@ from pddl import Type
 from pddl import TypedObject
 
 
+def replace_special_symbols(string: str):
+    # symbols '@' and '-' are replaced with '_AT_' and '_DASH_', respectively
+    output = string
+    for replacement in [('@', '_AT_'), ('-', '_DASH_')]:
+        output = output.replace(*replacement)
+    return output
+
+
 def get_forbidden_symbols(string: str):
     # clingo allows the following symbols for constants and variables: [A-Za-z0-9_’]
     allowed_symbols = [chr(c) for c in range(ord('a'), ord('z')+1)] + [chr(c)
@@ -16,15 +24,21 @@ def get_index_of_first_non_underscore(string: str):
     for i in range(len(string)):
         if string[i] != '_':
             return i
+    return None # TODO handle this case in a better way
+
 
 def translate_to_asp_predicate(pddl_predicate_name: str):
     asp_predicate = pddl_predicate_name
 
-    forbidden_symbols = get_forbidden_symbols(pddl_predicate_name)
+    # replace forbidden symbols '@' and '-'
+    forbidden_symbols = get_forbidden_symbols(asp_predicate)
+    if '@' in forbidden_symbols or '-' in forbidden_symbols:
+        asp_predicate = replace_special_symbols(asp_predicate)
+        forbidden_symbols = [sym for sym in forbidden_symbols if sym not in ['@',
+            '-']]
+
+    # remove remaining forbidden symbols
     if len(forbidden_symbols) >= 1:
-        # TODO is there a better option than just removing forbidden symbols?
-        # TODO replace, instead of remove, hyphen '-' because it occurs
-        # frequently in PDDL domains?
         print(f"WARNING: Predicate {pddl_predicate_name} contains the following forbidden symbols that are removed: {forbidden_symbols}")
         asp_predicate = ''.join([c for c in pddl_predicate_name if c not in
             forbidden_symbols])
@@ -45,13 +59,17 @@ def translate_to_asp_object(pddl_object: str):
     if all(c.isdigit() for c in pddl_object):
         # objects in clingo can be (positive) integers
         return pddl_object
-
     asp_object = pddl_object
-    forbidden_symbols = get_forbidden_symbols(pddl_object)
+
+    # replace forbidden symbols '@' and '-'
+    forbidden_symbols = get_forbidden_symbols(asp_object)
+    if '@' in forbidden_symbols or '-' in forbidden_symbols:
+        asp_object = replace_special_symbols(asp_object)
+        forbidden_symbols = [sym for sym in forbidden_symbols if sym not in ['@',
+            '-']]
+
+    # remove remaining forbidden symbols
     if len(forbidden_symbols) >= 1:
-        # TODO is there a better option than just removing forbidden symbols?
-        # TODO replace, instead of remove, hyphen '-' because it occurs
-        # frequently in PDDL domains?
         print(f"WARNING: Object {pddl_object} contains the following forbidden symbols that are removed: {forbidden_symbols}")
         asp_object = ''.join([c for c in pddl_object if c not in
             forbidden_symbols])
@@ -72,11 +90,15 @@ def translate_to_asp_variable(pddl_variable: str):
     assert pddl_variable[0] == "?"
     asp_variable = pddl_variable[1:]
 
+    # replace forbidden symbols '@' and '-'
     forbidden_symbols = get_forbidden_symbols(asp_variable)
+    if '@' in forbidden_symbols or '-' in forbidden_symbols:
+        asp_variable = replace_special_symbols(asp_variable)
+        forbidden_symbols = [sym for sym in forbidden_symbols if sym not in ['@',
+            '-']]
+
+    # remove remaining forbidden symbols
     if len(forbidden_symbols) >= 1:
-        # TODO is there a better option than just removing forbidden symbols?
-        # TODO replace, instead of remove, hyphen '-' because it occurs
-        # frequently in PDDL domains?
         print(f"WARNING: Variable {asp_variable} contains the following forbidden symbols that are removed: {forbidden_symbols}")
         asp_variable = ''.join([c for c in asp_variable if c not in
             forbidden_symbols])
@@ -184,7 +206,7 @@ class ASPGenerator:
             parameters = [variables[i] for i in range(p.get_arity())]
             predicate_name = translate_to_asp_predicate(p.name)
             head_parts.append(predicate_name + "(" + ", ".join(parameters) + ")")
-        head = "{" + ", ".join(head_parts) + "}"
+        head = "{" + "; ".join(head_parts) + "}"
 
         # make rule safe
         generic_type = translate_to_asp_predicate(self.generic_type.name)
@@ -196,8 +218,8 @@ class ASPGenerator:
 
 
     def generate_axioms(self):
-        axioms = [axiom.asp_string(translate_to_asp_predicate, translate_to_asp_term) for axiom in
-                self.domain.axioms]
+        axioms = [axiom.asp_string(translate_to_asp_predicate,
+            translate_to_asp_term) for axiom in self.domain.axioms]
 
         # integrity constraint that enforces legality
         legality_predicate = translate_to_asp_predicate(self.domain.legality_predicate)
