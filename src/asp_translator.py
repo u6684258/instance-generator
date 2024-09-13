@@ -17,9 +17,7 @@ def get_index_of_first_non_underscore(string: str):
         if string[i] != '_':
             return i
 
-# TODO find better names for to_asp_... functions
-# translate_to_asp_... ? translate_... ?
-def to_asp_predicate(pddl_predicate_name: str):
+def translate_to_asp_predicate(pddl_predicate_name: str):
     asp_predicate = pddl_predicate_name
 
     forbidden_symbols = get_forbidden_symbols(pddl_predicate_name)
@@ -43,7 +41,7 @@ def to_asp_predicate(pddl_predicate_name: str):
     return asp_predicate.lower()
 
 
-def to_asp_object(pddl_object: str):
+def translate_to_asp_object(pddl_object: str):
     if all(c.isdigit() for c in pddl_object):
         # objects in clingo can be (positive) integers
         return pddl_object
@@ -70,7 +68,7 @@ def to_asp_object(pddl_object: str):
     return asp_object.lower()
 
 
-def to_asp_variable(pddl_variable: str):
+def translate_to_asp_variable(pddl_variable: str):
     assert pddl_variable[0] == "?"
     asp_variable = pddl_variable[1:]
 
@@ -96,11 +94,11 @@ def to_asp_variable(pddl_variable: str):
 
 
 # transforms objects and variables
-def to_asp_term(pddl_term: str):
+def translate_to_asp_term(pddl_term: str):
     if pddl_term[0] == "?":
-        return to_asp_variable(pddl_term)
+        return translate_to_asp_variable(pddl_term)
     else:
-        return to_asp_object(pddl_term)
+        return translate_to_asp_object(pddl_term)
 
 
 class ASPGenerator:
@@ -153,11 +151,11 @@ class ASPGenerator:
         # type, a fact for this type is added as well
         facts = []
         for obj in self.objects:
-            object_name = to_asp_object(obj.name)
+            object_name = translate_to_asp_object(obj.name)
             if obj.type_name != self.generic_type.name:
-                object_type = to_asp_predicate(obj.type_name)
+                object_type = translate_to_asp_predicate(obj.type_name)
                 facts.append(f"{object_type}({object_name}).")
-            generic_type = to_asp_predicate(self.generic_type.name)
+            generic_type = translate_to_asp_predicate(self.generic_type.name)
             facts.append(f"{generic_type}({object_name}).")
         return facts
 
@@ -178,18 +176,18 @@ class ASPGenerator:
         types = self.domain.types
         if len(types) > 1:
             for t in types:
-                type_name = to_asp_predicate(t.name)
+                type_name = translate_to_asp_predicate(t.name)
                 head_parts.append(type_name + f"({variables[0]})")
 
         # add the basic predicates to choice rule
         for p in self.basic_predicates:
             parameters = [variables[i] for i in range(p.get_arity())]
-            predicate_name = to_asp_predicate(p.name)
+            predicate_name = translate_to_asp_predicate(p.name)
             head_parts.append(predicate_name + "(" + ", ".join(parameters) + ")")
         head = "{" + ", ".join(head_parts) + "}"
 
         # make rule safe
-        generic_type = to_asp_predicate(self.generic_type.name)
+        generic_type = translate_to_asp_predicate(self.generic_type.name)
         body_parts = [f"{generic_type}({var})" for var in variables]
         body = ", ".join(body_parts)
 
@@ -198,11 +196,11 @@ class ASPGenerator:
 
 
     def generate_axioms(self):
-        axioms = [axiom.asp_string(to_asp_predicate, to_asp_term) for axiom in
+        axioms = [axiom.asp_string(translate_to_asp_predicate, translate_to_asp_term) for axiom in
                 self.domain.axioms]
 
         # integrity constraint that enforces legality
-        legality_predicate = to_asp_predicate(self.domain.legality_predicate)
+        legality_predicate = translate_to_asp_predicate(self.domain.legality_predicate)
         axioms.append(f":- not {legality_predicate}().")
         return axioms
 
@@ -210,13 +208,13 @@ class ASPGenerator:
     def generate_show_statements(self):
         statements = []
         for pred in self.basic_predicates:
-            predicate_name = to_asp_predicate(pred.name)
+            predicate_name = translate_to_asp_predicate(pred.name)
             arity = pred.get_arity()
             statements.append(f"#show {predicate_name}/{arity}.")
         return statements
 
 
-def translate(domain, universe_size=1):
+def translate(domain: pddl.Domain, universe_size=1):
     if universe_size <= 0:
         print("Size of universe must be at least 1.")
         sys.exit(1)
