@@ -2,6 +2,8 @@
 
 import sys
 
+from clingo import Control
+
 import asp_translator
 import normalize
 import pddl
@@ -28,10 +30,22 @@ def main():
 
     print("Translating to ASP")
     translated_domain = asp_translator.translate(domain, universe_size)
-    print(translated_domain)
-    # TODO call clingo
-    # TODO translate clingo output back into original (PDDL) syntax
+#    print(translated_domain)
 
+    print("Calling clingo")
+    ctl = Control()
+#    ctl = Control(["0"]) # compute all models
+    ctl.add(translated_domain)
+    ctl.ground()
+#    result = ctl.solve(on_model=print) # prints the model(s)
+#    print(result) # prints whether satisfiable or unsatisfiable
+    with ctl.solve(yield_ = True) as handle:
+        for model in handle:
+            print(model)
+        print(handle.get()) # returns whether satisfiable or unsatisfiable
+
+    # TODO translate clingo output back into original (PDDL) syntax and create
+    # problem instance
 
 
 if __name__ == "__main__":
