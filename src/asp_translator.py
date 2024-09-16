@@ -1,5 +1,8 @@
 import sys
 
+from collections import defaultdict
+from itertools import combinations
+
 import pddl
 
 from pddl import Predicate
@@ -226,6 +229,19 @@ class ASPGenerator:
         # integrity constraint that enforces legality
         legality_predicate = translate_to_asp_predicate(self.domain.legality_predicate)
         axioms.append(f":- not {legality_predicate}().")
+        axioms.extend(self.generate_type_axioms())
+        return axioms
+
+    def generate_type_axioms(self):
+        direct_subtypes = defaultdict(set)
+        axioms = []
+        for t in self.domain.types:
+            if t.basetype_name is not None:
+                direct_subtypes[t.basetype_name].add(t.name)
+                axioms.append(f":- {t.name}(X), not {t.basetype_name}(X).")
+        for basetype, subtypes in direct_subtypes.items():
+            for t1, t2 in combinations(subtypes, 2):
+                axioms.append(f":- {t1}(X), {t2}(X).")
         return axioms
 
 
