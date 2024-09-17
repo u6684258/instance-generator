@@ -213,27 +213,49 @@ class ASPGenerator:
         axioms = [axiom.asp_string(translate_to_asp_predicate,
             translate_to_asp_term) for axiom in self.domain.axioms]
 
-        axioms.extend(self.generate_type_axioms())
+        axioms.extend(self.generate_parameter_type_axioms())
+        axioms.extend(self.generate_type_hierarchy_axioms())
 
         # integrity constraint that enforces legality
         legality_predicate = translate_to_asp_predicate(self.domain.legality_predicate)
         axioms.append(f":- not {legality_predicate}().")
         return axioms
 
-    def generate_type_axioms(self):
-        # generates axioms ensuring that the type predicates comply with the
+
+    def generate_parameter_type_axioms(self):
+        # generates axioms ensuring that the basic predicates are instantiated
+        # only with objects of correct types
+        axioms = []
+        for pred in self.basic_predicates:
+            pred_name = translate_to_asp_predicate(pred.name)
+            pred_params = ', '.join([translate_to_asp_term(param.name) for
+                                     param in pred.arguments])
+            pred_atom = f"{pred_name}({pred_params})"
+            for param in pred.arguments:
+                param_name = translate_to_asp_term(param.name)
+                param_type = translate_to_asp_predicate(param.type_name)
+                axioms.append(f":- {pred_atom}, not {param_type}({param_name}).")
+        return axioms
+
+
+    def generate_type_hierarchy_axioms(self):
+        # generates axioms ensuring that the type-predicates comply with the
         # type hierarchy of the domain
         direct_subtypes = defaultdict(set)
         axioms = []
         for t in self.domain.types:
             if t.basetype_name is not None:
                 direct_subtypes[t.basetype_name].add(t.name)
-                axioms.append(f":- {t.name}(X), not {t.basetype_name}(X).")
+                type_name = translate_to_asp_predicate(t.name)
+                basetype_name = translate_to_asp_predicate(t.basetype_name)
+                axioms.append(f":- {type_name}(X), not {basetype_name}(X).")
                   # if t has a supertype (a basetype), all objects of type t
                   # must also have the supertype
         for basetype, subtypes in direct_subtypes.items():
             for t1, t2 in combinations(subtypes, 2):
-                axioms.append(f":- {t1}(X), {t2}(X).")
+                translated_t1 = translate_to_asp_predicate(t1)
+                translated_t2 = translate_to_asp_predicate(t2)
+                axioms.append(f":- {translated_t1}(X), {translated_t2}(X).")
                   # types with the same direct supertype (same basetype) are
                   # mutually exclusive
         return axioms
