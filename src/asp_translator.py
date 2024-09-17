@@ -33,7 +33,11 @@ def get_index_of_first_non_underscore(string: str):
 
 
 def translate_to_asp_predicate(pddl_predicate_name: str):
-    asp_predicate = pddl_predicate_name
+    asp_predicate = pddl_predicate_name.lower()
+      # Predicates in clingo must start with a lower case letter. We transform
+      # the entire predicate to lower case so that "pred", "PRED" and "Pred"
+      # (identical predicates in PDDL) are mapped to the same transformed
+      # string.
 
     # replace forbidden symbols '@' and '-'
     forbidden_symbols = get_forbidden_symbols(asp_predicate)
@@ -49,17 +53,17 @@ def translate_to_asp_predicate(pddl_predicate_name: str):
     if first_non_underscore is None or not asp_predicate[first_non_underscore].isalpha():
         asp_predicate = "pred_" + asp_predicate
 
-    # Predicates in clingo must start with a lower case letter. We transform
-    # the entire predicate to lower case so that "pred", "PRED" and "Pred"
-    # (identical predicates in PDDL) are mapped to the same transformed string.
-    return asp_predicate.lower()
+    return asp_predicate
 
 
 def translate_to_asp_object(pddl_object: str):
     if all(c.isdigit() for c in pddl_object):
-        # objects in clingo can be (positive) integers
+        # objects in clingo can be integers
         return pddl_object
-    asp_object = pddl_object
+    asp_object = pddl_object.lower()
+      # Objects in clingo must start with a lower case letter. We transform the
+      # entire object to lower case so that "obj", "OBJ" and "Obj" (identical
+      # objects in PDDL) are mapped to the same transformed string.
 
     # replace forbidden symbols '@' and '-'
     forbidden_symbols = get_forbidden_symbols(asp_object)
@@ -75,15 +79,16 @@ def translate_to_asp_object(pddl_object: str):
     if first_non_underscore is None or not asp_object[first_non_underscore].isalpha():
         asp_object = "obj_" + asp_object
     
-    # Objects in clingo must start with a lower case letter. We transform the
-    # entire object to lower case so that "obj", "OBJ" and "Obj" (identical
-    # objects in PDDL) are mapped to the same transformed string.
-    return asp_object.lower()
+    return asp_object
 
 
 def translate_to_asp_variable(pddl_variable: str):
     assert pddl_variable[0] == "?"
-    asp_variable = pddl_variable[1:]
+    asp_variable = pddl_variable[1:].upper()
+      # Variables in clingo must start with a upper case letter. We transform
+      # the entire variable to lower case so that "var", "VAR" and "Var"
+      # (identical variables in PDDL) are mapped to the same transformed
+      # string.
 
     # replace forbidden symbols '@' and '-'
     forbidden_symbols = get_forbidden_symbols(asp_variable)
@@ -99,10 +104,7 @@ def translate_to_asp_variable(pddl_variable: str):
     if first_non_underscore is None or not asp_variable[first_non_underscore].isalpha():
         asp_variable = "Var_" + asp_variable
     
-    # Variables in clingo must start with a upper case letter. We transform the
-    # entire variable to lower case so that "var", "VAR" and "Var" (identical
-    # variables in PDDL) are mapped to the same transformed string.
-    return asp_variable.upper()
+    return asp_variable
 
 
 # transforms objects and variables
