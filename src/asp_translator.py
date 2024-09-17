@@ -41,12 +41,7 @@ def translate_to_asp_predicate(pddl_predicate_name: str):
         asp_predicate = replace_special_symbols(asp_predicate)
         forbidden_symbols = [sym for sym in forbidden_symbols if sym not in ['@',
             '-']]
-
-    # remove remaining forbidden symbols
-    if len(forbidden_symbols) >= 1:
-        print(f"WARNING: Predicate {pddl_predicate_name} contains the following forbidden symbols that are removed: {forbidden_symbols}")
-        asp_predicate = ''.join([c for c in pddl_predicate_name if c not in
-            forbidden_symbols])
+    assert(len(forbidden_symbols) == 0)
 
     # check if first character, potentially after a sequence of underscores
     # '_', is a letter, if not add prefix 'pred_'
@@ -72,12 +67,7 @@ def translate_to_asp_object(pddl_object: str):
         asp_object = replace_special_symbols(asp_object)
         forbidden_symbols = [sym for sym in forbidden_symbols if sym not in ['@',
             '-']]
-
-    # remove remaining forbidden symbols
-    if len(forbidden_symbols) >= 1:
-        print(f"WARNING: Object {pddl_object} contains the following forbidden symbols that are removed: {forbidden_symbols}")
-        asp_object = ''.join([c for c in pddl_object if c not in
-            forbidden_symbols])
+    assert(len(forbidden_symbols) == 0)
 
     # check if first character, potentially after a sequence of underscores
     # '_', is a letter, if not add prefix 'obj_'
@@ -101,12 +91,7 @@ def translate_to_asp_variable(pddl_variable: str):
         asp_variable = replace_special_symbols(asp_variable)
         forbidden_symbols = [sym for sym in forbidden_symbols if sym not in ['@',
             '-']]
-
-    # remove remaining forbidden symbols
-    if len(forbidden_symbols) >= 1:
-        print(f"WARNING: Variable {asp_variable} contains the following forbidden symbols that are removed: {forbidden_symbols}")
-        asp_variable = ''.join([c for c in asp_variable if c not in
-            forbidden_symbols])
+    assert(len(forbidden_symbols) == 0)
 
     # check if first character, potentially after a sequence of underscores
     # '_', is a letter, if not add prefix 'Var_'
@@ -226,22 +211,29 @@ class ASPGenerator:
         axioms = [axiom.asp_string(translate_to_asp_predicate,
             translate_to_asp_term) for axiom in self.domain.axioms]
 
+        axioms.extend(self.generate_type_axioms())
+
         # integrity constraint that enforces legality
         legality_predicate = translate_to_asp_predicate(self.domain.legality_predicate)
         axioms.append(f":- not {legality_predicate}().")
-        axioms.extend(self.generate_type_axioms())
         return axioms
 
     def generate_type_axioms(self):
+        # generates axioms ensuring that the type predicates comply with the
+        # type hierarchy of the domain
         direct_subtypes = defaultdict(set)
         axioms = []
         for t in self.domain.types:
             if t.basetype_name is not None:
                 direct_subtypes[t.basetype_name].add(t.name)
                 axioms.append(f":- {t.name}(X), not {t.basetype_name}(X).")
+                  # if t has a supertype (a basetype), all objects of type t
+                  # must also have the supertype
         for basetype, subtypes in direct_subtypes.items():
             for t1, t2 in combinations(subtypes, 2):
                 axioms.append(f":- {t1}(X), {t2}(X).")
+                  # types with the same direct supertype (same basetype) are
+                  # mutually exclusive
         return axioms
 
 
