@@ -31,27 +31,32 @@ class Axiom:
 
         body = self.condition.asp_string(predicate_conversion, term_conversion)
 
-        # ensure correct typing of the parameters of the head (also ensures
-        # that these parameters do not occur unsafe in the body)
-        # TODO add type-atoms only for parameters that do not have generic
-        # type? adding it for all parameters automatically makes rule safe though
-        if len(head_parameters) >= 1:
+        # ensure typing of parameters and make rule safe
+        if len(self.parameters) >= 1:
             parameter_type_atoms = ", ".join(
                     [f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
-                        for param in head_parameters])
+                        for param in self.parameters])
             body = body + ", " + parameter_type_atoms
-
-        # make rule safe (regarding the remaining parameters)
-        remaining_parameters = self.parameters[self.num_external_parameters:]
-        for param in remaining_parameters:
-            if type(self.condition) is conditions.NegatedAtom:
-                body = body + ", " + f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
-            elif type(self.condition) is conditions.Conjunction:
-                assert all(isinstance(p, Literal) for p in self.condition.parts)
-                occurs_positively = False in [part.negated for part in
-                        self.condition.parts if param.name in part.args]
-                if not occurs_positively:
-                    body = body + ", " + f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
+#
+#        # ensure correct typing of the parameters of the head (also ensures
+#        # that these parameters do not occur unsafe in the body)
+#        if len(head_parameters) >= 1:
+#            parameter_type_atoms = ", ".join(
+#                    [f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
+#                        for param in head_parameters])
+#            body = body + ", " + parameter_type_atoms
+#
+#        # make rule safe (regarding the remaining parameters)
+#        remaining_parameters = self.parameters[self.num_external_parameters:]
+#        for param in remaining_parameters:
+#            if type(self.condition) is conditions.NegatedAtom:
+#                body = body + ", " + f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
+#            elif type(self.condition) is conditions.Conjunction:
+#                assert all(isinstance(p, Literal) for p in self.condition.parts)
+#                occurs_positively = False in [part.negated for part in
+#                        self.condition.parts if param.name in part.args]
+#                if not occurs_positively:
+#                    body = body + ", " + f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
 
         rule = f"{head} :- {body}."
         return rule
