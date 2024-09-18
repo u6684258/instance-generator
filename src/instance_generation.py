@@ -38,26 +38,42 @@ def create_instance(model: Model, domain: pddl.Domain):
     objects = defaultdict(set)
     initial_state = []
     pddl_type_names = [t.name.lower() for t in domain.types]
-    # TODO replace dash when processing atom
     for atom in asp_atoms:
         atom_name = atom.name.replace(*('_DASH_', '-'))
         if atom_name in pddl_type_names:
             # if the atom describes the type of an object, add that object and
-            # the type to the objects-dictionary
+            # that type to the objects-dictionary
             assert(len(atom.arguments) == 1)
             argument = atom.arguments[0]
-            argument_string = f"obj_{argument.number}" if argument is SymbolType.Number else str(argument)
-            objects[argument_string].add(atom_name)
-        # TODO else add the atom to the initial state
-            
+            argument_string = f"obj_{argument.number}" if argument.type is SymbolType.Number else str(argument)
+#            objects[argument_string].add(atom_name)
+            object_type = pddl.Type("object")
+            for t in domain.types:
+                if atom_name == t.name.lower():
+                    object_type = t
+                    break
+            objects[argument_string].add(object_type)
+        else:
+            # else the atom is a basic predicate and thus is added to the
+            # initial state
+            arguments = []
+            for arg in atom.arguments:
+                argument_string = f"obj_{arg.number}" if arg.type is SymbolType.Number else str(arg)
+                arguments.append(argument_string)
+            initial_state.append(f"({atom_name} {' '.join(arguments)})")
 
     # TODO for all objects: set object's type to the one that is no basetype of
     # any type mentioned for this object
-
+    typed_objects = []
+    for obj, types in objects.items():
+        print(obj)
+        print([t.name for t in types])
+#        object_type = # the type in types that is not a basetype of any type in types
+#        typed_objects.append(f"{obj} - {object_type.name.lower()}")
     objects_string = f"(:objects)" # TODO
     instance_parts.append(objects_string)
 
-    initial_state_string = f"(:init)" # TODO implement and add line (= (total-cost) 0) if have action costs
+    initial_state_string = f"(:init\n  {'\n  '.join(initial_state)})" # TODO add line (= (total-cost) 0) if have action costs
     instance_parts.append(initial_state_string)
 
     goal = f"(:goal)"# TODO add domain.goal
