@@ -264,9 +264,9 @@ class ASPGenerator:
     def generate_show_statements(self):
         statements = []
         for t in self.domain.types:
-            if t.name != self.generic_type.name:
-                predicate_name = translate_to_asp_predicate(t.name)
-                statements.append(f"#show {predicate_name}/1.")
+#            if t.name != self.generic_type.name:
+            predicate_name = translate_to_asp_predicate(t.name)
+            statements.append(f"#show {predicate_name}/1.")
 
         for pred in self.basic_predicates:
             predicate_name = translate_to_asp_predicate(pred.name)

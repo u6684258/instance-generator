@@ -14,27 +14,12 @@ import pddl_parser
 
 
 def create_instance(model: Model, domain: pddl.Domain):
-    # TODO differentiate between types and other basic atoms; use the types for
-    # the specification of the objects
-    # TODO add the two fixed lines if action-costs are included; identify this
-    # by looking at domain.functions (assert len <= 1 and if == 1 add the two
-    # lines)
     asp_atoms = [sym for sym in model.symbols(shown=True)]
     assert(all(sym.type is SymbolType.Function for sym in asp_atoms))
     assert(all('_AT_' not in atom.name for atom in asp_atoms))
 
-#    instance = []
-#    for atom in asp_atoms:
-#        atom_name = atom.name.replace(*('_DASH_', '-'))
-#        atom_args = []
-#        for arg in atom.arguments:
-#            if arg.type is SymbolType.Number:
-#                atom_args.append(f"obj_{arg.number}")
-#            else:
-#                atom_args.append(str(arg))
-#        instance.append(f"name: {atom_name}, args: {', '.join(atom_args)}")
-#    return "\n".join(instance)
-    instance_parts = []
+    # retrieve the PDDL objects (and their types) and the initial state atoms
+    # from the atoms of the ASP model
     objects = defaultdict(set)
     initial_state = []
     pddl_type_names = [t.name.lower() for t in domain.types]
@@ -45,14 +30,13 @@ def create_instance(model: Model, domain: pddl.Domain):
             # that type to the objects-dictionary
             assert(len(atom.arguments) == 1)
             argument = atom.arguments[0]
-            argument_string = f"obj_{argument.number}" if argument.type is SymbolType.Number else str(argument)
-#            objects[argument_string].add(atom_name)
+            object_string = f"obj_{argument.number}" if argument.type is SymbolType.Number else str(argument)
             object_type = pddl.Type("object")
             for t in domain.types:
                 if atom_name == t.name.lower():
                     object_type = t
                     break
-            objects[argument_string].add(object_type)
+            objects[object_string].add(object_type)
         else:
             # else the atom is a basic predicate and thus is added to the
             # initial state
@@ -62,27 +46,38 @@ def create_instance(model: Model, domain: pddl.Domain):
                 arguments.append(argument_string)
             initial_state.append(f"({atom_name} {' '.join(arguments)})")
 
-    # TODO for all objects: set object's type to the one that is no basetype of
-    # any type mentioned for this object
     typed_objects = []
     for obj, types in objects.items():
-        print(obj)
-        print([t.name for t in types])
-#        object_type = # the type in types that is not a basetype of any type in types
-#        typed_objects.append(f"{obj} - {object_type.name.lower()}")
-    objects_string = f"(:objects)" # TODO
+        base_type_names = [t.basetype_name.lower() for t in types if
+                            t.basetype_name is not None]
+        non_base_types = [t for t in types if t.name.lower() not in
+                          base_type_names]
+        assert(len(non_base_types) == 1)
+          # an object can have only one type that is not a super type (base type)
+        object_type = non_base_types[0]
+        typed_objects.append(f"{obj} - {object_type.name.lower()}")
+
+    assert(len(domain.functions) <= 1)
+      # the instance generator does not handle functions except for action
+      # costs
+    has_action_costs = len(domain.functions) == 1
+    instance_parts = []
+
+    objects_string = f"(:objects\n  {'\n  '.join(typed_objects)}\n)"
     instance_parts.append(objects_string)
 
-    initial_state_string = f"(:init\n  {'\n  '.join(initial_state)})" # TODO add line (= (total-cost) 0) if have action costs
+    if has_action_costs:
+        initial_state.insert(0, "(= (total-cost) 0)")
+    initial_state_string = f"(:init\n  {'\n  '.join(initial_state)}\n)"
     instance_parts.append(initial_state_string)
 
-    goal = f"(:goal)"# TODO add domain.goal
-    # TODO add string methods to Condition etc. for this (can probably reuse code from dump-methods)
+    goal = f"(:goal\n  {domain.goal.pddl_string()}\n)"
     instance_parts.append(goal)
 
-    # TODO if action-costs: instance_parts.append(metric)
+    if has_action_costs:
+        instance_parts.append("(:metric minimize (total-cost))")
 
-    instance = f"(define (problem p{model.number})\n(:domain {domain.domain_name})\n{'\n'.join(instance_parts)}\n)"
+    instance = f"(define (problem p{model.number})\n\n(:domain {domain.domain_name})\n{'\n'.join(instance_parts)}\n\n)"
     return instance
 
 

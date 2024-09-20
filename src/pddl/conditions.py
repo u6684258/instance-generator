@@ -142,6 +142,8 @@ class Conjunction(JunctorCondition):
         assert all(isinstance(p, Literal) for p in self.parts)
         return ", ".join(p.asp_string(predicate_conversion, term_conversion)
                          for p in self.parts)
+    def pddl_string(self):
+        return f"(and {' '.join([part.pddl_string() for part in self.parts])})"
 
 class Disjunction(JunctorCondition):
     def _simplified(self, parts):
@@ -162,6 +164,8 @@ class Disjunction(JunctorCondition):
         return Conjunction([p.negate() for p in self.parts])
     def has_disjunction(self):
         return True
+    def pddl_string(self):
+        return f"(or {' '.join([part.pddl_string() for part in self.parts])})"
 
 class QuantifiedCondition(Condition):
     # Defining __eq__ blocks inheritance of __hash__, so must set it explicitly.
@@ -211,6 +215,11 @@ class UniversalCondition(QuantifiedCondition):
         return ExistentialCondition(self.parameters, [p.negate() for p in self.parts])
     def has_universal_part(self):
         return True
+    def pddl_string(self):
+        parameters = [f"{param.name} - {param.type_name}" for param in
+                      self.parameters]
+        parts = [part.pddl_string() for part in self.parts]
+        return f"(forall ({' '.join(parameters)}) {' '.join(parts)})"
 
 class ExistentialCondition(QuantifiedCondition):
     def _untyped(self, parts):
@@ -224,6 +233,11 @@ class ExistentialCondition(QuantifiedCondition):
         self.parts[0].instantiate(var_mapping, init_facts, fluent_facts, result)
     def has_existential_part(self):
         return True
+    def pddl_string(self):
+        parameters = [f"{param.name} - {param.type_name}" for param in
+                      self.parameters]
+        parts = [part.pddl_string() for part in self.parts]
+        return f"(exists ({' '.join(parameters)}) {' '.join(parts)})"
 
 class Literal(Condition):
     # Defining __eq__ blocks inheritance of __hash__, so must set it explicitly.
@@ -278,6 +292,11 @@ class Literal(Condition):
         args = ", ".join(term_conversion(arg) for arg in self.args)
         neg = "not " if self.negated else ""
         return f"{neg}{predicate_conversion(self.predicate)}({args})"
+    def pddl_string(self):
+        if self.negated:
+            return f"(not ({self.predicate} {' '.join(self.args)}))"
+        else:
+            return f"({self.predicate} {' '.join(self.args)})"
 
 class Atom(Literal):
     negated = False
