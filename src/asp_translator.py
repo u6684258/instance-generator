@@ -129,20 +129,39 @@ class ASPGenerator:
         self.basic_predicates = self._get_basic_predicates()
 
 
+    def __init__(self, domain: pddl.Domain, typed_universe: dict):
+        self.domain = domain
+        self.universe_size = sum([n for t,n in typed_universe.items()])
+        self.generic_type =  self._get_generic_type()
+          # type that all objects share
+        self.objects = self._get_objects(typed_universe)
+          # list of TypedObject (compared to domain.objects this also includes
+          # the task-specific objects)
+        self.basic_predicates = self._get_basic_predicates()
+
+
     def _get_generic_type(self):
         types = self.domain.types
         if len(types) == 1:
             # all objects have the given type
             return types[0]
         else:
-            # all objects have a generic type (the ASP solver decides which object
-            # gets which specific type)
+            # all objects have the generic type "object"
             return Type("object")
 
 
-    def _get_objects(self):
+    def _get_objects(self, typed_universe: dict = None):
         domain_wide_objects = self.domain.objects 
-        task_specific_objects = [TypedObject(str(i), self.generic_type.name) for i in range(1, self.universe_size+1)]
+        if typed_universe:
+            num_object = 1
+            task_specific_objects = []
+            for t,n in typed_universe.items():
+                for i in range(n):
+                    task_specific_objects.append(TypedObject(str(num_object), t))
+                    num_object = num_object + 1
+            assert(len(task_specific_objects) == self.universe_size)
+        else:
+            task_specific_objects = [TypedObject(str(i), self.generic_type.name) for i in range(1, self.universe_size+1)]
         return domain_wide_objects + task_specific_objects
 
 
@@ -275,12 +294,7 @@ class ASPGenerator:
         return statements
 
 
-def translate(domain: pddl.Domain, universe_size=1):
-    if universe_size <= 0:
-        print("Error: Size of universe must be at least 1.")
-        sys.exit(1)
-
-    asp_generator = ASPGenerator(domain, universe_size)
+def _translate(asp_generator: ASPGenerator):
     translated_parts = []
     translated_parts += asp_generator.generate_type_facts()
     translated_parts += asp_generator.generate_choice_predicates_rule()
@@ -289,4 +303,25 @@ def translate(domain: pddl.Domain, universe_size=1):
 
     translated_domain = '\n'.join(translated_parts)
     return translated_domain
+
+def translate(domain: pddl.Domain, universe_size=1):
+    if universe_size <= 0:
+        print("Error: Size of universe must be at least 1.")
+        sys.exit(1)
+
+    asp_generator = ASPGenerator(domain, universe_size)
+    return _translate(asp_generator)
+
+def translate(domain: pddl.Domain, typed_universe: dict):
+    if sum([n for t,n in typed_universe.items()]) <= 0:
+        print("Error: Universe must contain at least one object.")
+        sys.exit(1)
+    domain_types = [t.name for t in domain.types]
+    for t in typed_universe.keys():
+        if not t in domain_types:
+            print(f"Error: {t} is not mentioned as a type in the domain file.")
+            sys.exit(1)
+
+    asp_generator = ASPGenerator(domain, typed_universe)
+    return _translate(asp_generator)
 

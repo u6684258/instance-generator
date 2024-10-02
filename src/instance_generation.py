@@ -1,5 +1,7 @@
 #! /usr/bin/env python3
 
+import argparse
+import json
 import sys
 
 from clingo import Control
@@ -82,16 +84,18 @@ def create_instance(model: Model, domain: pddl.Domain):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: instance_generation.py <domain-file> <universe-size>")
-        sys.exit(1)
-    if not sys.argv[2].isdigit():
-        print("Second argument <universe-size> must be a positive integer.")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+            "domain",
+            help="domain file for which an instance will be generated")
+    arg_group = parser.add_mutually_exclusive_group(required=True)
+    arg_group.add_argument("-n","--num_objects", type=int,
+                        help="number of objects the instance will have")
+    arg_group.add_argument("-t", "--typed_universe",
+                           help="JSON file specifying how many objects of which types the instance will have")
+    args = parser.parse_args()
 
-    domain_file = sys.argv[1]
-    universe_size = int(sys.argv[2])
-    domain = pddl_parser.open(domain_file)
+    domain = pddl_parser.open(args.domain)
 #    domain.dump()
 #    print()
 
@@ -101,7 +105,15 @@ def main():
 #    domain.dump()
 
     print("Translating to ASP")
-    translated_domain = asp_translator.translate(domain, universe_size)
+    if args.num_objects:
+        universe_size = args.num_objects
+        translated_domain = asp_translator.translate(domain, universe_size)
+    else:
+        file = open(args.typed_universe)
+        typed_universe = json.load(file)
+        # TODO verify that typed_universe has correct form? i. e. each key is
+        # string, each entry has single item which is int
+        translated_domain = asp_translator.translate(domain, typed_universe)
     print(translated_domain)
 
     print("Calling clingo")
