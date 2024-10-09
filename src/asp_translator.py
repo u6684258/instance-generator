@@ -118,17 +118,6 @@ def translate_to_asp_term(pddl_term: str):
 class ASPGenerator:
     # assumes that domain.axioms are in Datalog form, i. e., rule bodies are
     # (implicitly existentially quantified) conjunctions of literals
-    def __init__(self, domain: pddl.Domain, universe_size = 1):
-        self.domain = domain
-        self.universe_size = universe_size
-        self.generic_type =  self._get_generic_type()
-          # type that all objects share
-        self.objects = self._get_objects()
-          # list of TypedObject (compared to domain.objects this also includes
-          # the task-specific objects)
-        self.basic_predicates = self._get_basic_predicates()
-
-
     def __init__(self, domain: pddl.Domain, typed_universe: dict):
         self.domain = domain
         self.universe_size = sum([n for t,n in typed_universe.items()])
@@ -146,22 +135,18 @@ class ASPGenerator:
             # all objects have the given type
             return types[0]
         else:
-            # all objects have the generic type "object"
+            # all objects have the generic PDDL type "object"
             return Type("object")
 
 
-    def _get_objects(self, typed_universe: dict = None):
+    def _get_objects(self, typed_universe: dict):
         domain_wide_objects = self.domain.objects 
-        if typed_universe:
-            num_object = 1
-            task_specific_objects = []
-            for t,n in typed_universe.items():
-                for i in range(n):
-                    task_specific_objects.append(TypedObject(str(num_object), t))
-                    num_object = num_object + 1
-            assert(len(task_specific_objects) == self.universe_size)
-        else:
-            task_specific_objects = [TypedObject(str(i), self.generic_type.name) for i in range(1, self.universe_size+1)]
+        object_number = 1
+        task_specific_objects = []
+        for t,n in typed_universe.items():
+            for i in range(n):
+                task_specific_objects.append(TypedObject(str(object_number), t))
+                object_number = object_number + 1
         return domain_wide_objects + task_specific_objects
 
 
@@ -304,15 +289,16 @@ def _translate(asp_generator: ASPGenerator):
     translated_domain = '\n'.join(translated_parts)
     return translated_domain
 
-def translate(domain: pddl.Domain, universe_size=1):
+def translate_by_size(domain: pddl.Domain, universe_size: int):
     if universe_size <= 0:
         print("Error: Size of universe must be at least 1.")
         sys.exit(1)
 
-    asp_generator = ASPGenerator(domain, universe_size)
+    universe = {"object": universe_size} # generic PDDL type "object"
+    asp_generator = ASPGenerator(domain, universe)
     return _translate(asp_generator)
 
-def translate(domain: pddl.Domain, typed_universe: dict):
+def translate_by_universe(domain: pddl.Domain, typed_universe: dict):
     if sum([n for t,n in typed_universe.items()]) <= 0:
         print("Error: Universe must contain at least one object.")
         sys.exit(1)

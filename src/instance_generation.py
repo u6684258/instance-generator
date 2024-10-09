@@ -107,13 +107,15 @@ def main():
     print("Translating to ASP")
     if args.num_objects:
         universe_size = args.num_objects
-        translated_domain = asp_translator.translate(domain, universe_size)
+        translated_domain = asp_translator.translate_by_size(domain,
+                                                             universe_size)
     else:
         file = open(args.typed_universe)
         typed_universe = json.load(file)
         # TODO verify that typed_universe has correct form? i. e. each key is
         # string, each entry has single item which is int
-        translated_domain = asp_translator.translate(domain, typed_universe)
+        translated_domain = asp_translator.translate_by_universe(domain,
+                                                                 typed_universe)
     print(translated_domain)
 
     print("Calling clingo")
