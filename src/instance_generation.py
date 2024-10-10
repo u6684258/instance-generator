@@ -87,12 +87,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
             "domain",
-            help="domain file for which an instance will be generated")
+            help="PDDL domain file for which instances will be generated")
     arg_group = parser.add_mutually_exclusive_group(required=True)
     arg_group.add_argument("-n","--num_objects", type=int,
                         help="number of objects the instance will have")
     arg_group.add_argument("-t", "--typed_universe",
                            help="JSON file specifying how many objects of which types the instance will have")
+    parser.add_argument("num_instances", nargs='?', type=int, default=1,
+                        help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
     args = parser.parse_args()
 
     domain = pddl_parser.open(args.domain)
@@ -116,18 +118,22 @@ def main():
         # string, each entry has single item which is int
         translated_domain = asp_translator.translate_by_universe(domain,
                                                                  typed_universe)
-    print(translated_domain)
+#    print(translated_domain)
 
+    if args.num_instances < 0:
+        print("Error: num_instances must be a non-negative number.")
+        sys.exit(1)
     print("Calling clingo")
-    ctl = Control()
+    ctl = Control([f"{args.num_instances}"])
 #    ctl = Control(["0"]) # compute all models
     ctl.add(translated_domain)
     ctl.ground()
     with ctl.solve(yield_ = True) as handle:
         for model in handle:
-            print(model)
+#            print(model)
             print(f"Creating instance number {model.number} from ASP model")
             print(create_instance(model, domain))
+            print()
         if handle.get().satisfiable:
             print("Finished generating instances.")
         elif handle.get().unsatisfiable:
