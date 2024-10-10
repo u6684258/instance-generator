@@ -90,11 +90,13 @@ def main():
             help="PDDL domain file for which instances will be generated")
     arg_group = parser.add_mutually_exclusive_group(required=True)
     arg_group.add_argument("-n","--num_objects", type=int,
-                        help="number of objects the instance will have")
+                        help="number of objects the instances will have")
     arg_group.add_argument("-t", "--typed_universe",
-                           help="JSON file specifying how many objects of which types the instance will have")
+                           help="JSON file specifying how many objects of which types the instances will have")
     parser.add_argument("num_instances", nargs='?', type=int, default=1,
                         help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
+    parser.add_argument("-o", "--output_file_prefix",
+                        help="write generated instances to files whose names begin with the given prefix")
     args = parser.parse_args()
 
     domain = pddl_parser.open(args.domain)
@@ -132,8 +134,15 @@ def main():
         for model in handle:
 #            print(model)
             print(f"Creating instance number {model.number} from ASP model")
-            print(create_instance(model, domain))
-            print()
+            instance = create_instance(model, domain)
+            if args.output_file_prefix:
+                with open(f"{args.output_file_prefix}{model.number}.pddl",
+                          "w") as f:
+                    f.write(instance)
+                    f.write("\n\n")
+            else:
+                print(instance)
+                print()
         if handle.get().satisfiable:
             print("Finished generating instances.")
         elif handle.get().unsatisfiable:
