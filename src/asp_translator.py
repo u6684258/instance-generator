@@ -152,13 +152,14 @@ class ASPGenerator:
 
     def _get_basic_predicates(self):
         # from self.domain.predicates returns those that are basic predicates,
-        # exluding equality '='
+        # exluding equality '=' and less-than "<"
         predicates = self.domain.predicates
         derived_predicates = [axiom.name for axiom in self.domain.axioms]
 
         basic_predicates = []
         for pred in predicates:
-            if not pred.name in derived_predicates and pred.name != "=":
+            if not pred.name in derived_predicates and \
+                    pred.name != "=" and pred.name != "<":
                 basic_predicates.append(pred)
         return basic_predicates
 

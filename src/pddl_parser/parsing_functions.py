@@ -424,8 +424,11 @@ def parse_domain_pddl(context, domain_pddl):
             elif field == ":predicates":
                 the_predicates = parse_predicates(context, opt[1:])
                 the_predicates += [pddl.Predicate("=", [
-                    pddl.TypedObject("?x", "object"),
-                    pddl.TypedObject("?y", "object")])]
+                        pddl.TypedObject("?x", "object"),
+                        pddl.TypedObject("?y", "object")]),
+                    pddl.Predicate("<", [
+                        pddl.TypedObject("?x", "object"),
+                        pddl.TypedObject("?y", "object")])]
                 predicate_dict = {pred.name: pred for pred in the_predicates}
             elif field == ":functions":
                 with context.layer("Parsing functions"):

@@ -288,6 +288,10 @@ class Literal(Condition):
             assert len(self.args) == 2
             neg = "!" if self.negated else ""
             return f"{term_conversion(self.args[0])} {neg}= {term_conversion(self.args[1])}"
+        elif self.predicate == "<":
+            assert len(self.args) == 2
+            pred = ">=" if self.negated else "<"
+            return f"{term_conversion(self.args[0])} {pred} {term_conversion(self.args[1])}"
 
         args = ", ".join(term_conversion(arg) for arg in self.args)
         neg = "not " if self.negated else ""
