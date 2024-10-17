@@ -79,7 +79,7 @@ def create_instance(model: Model, domain: pddl.Domain):
     if has_action_costs:
         instance_parts.append("(:metric minimize (total-cost))")
 
-    instance = f"(define (problem p{model.number})\n\n(:domain {domain.domain_name})\n{'\n'.join(instance_parts)}\n\n)"
+    instance = f"(define (problem p{model.number})\n(:domain {domain.domain_name})\n{'\n'.join(instance_parts)}\n\n)"
     return instance
 
 
@@ -97,6 +97,12 @@ def main():
                         help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
     parser.add_argument("-o", "--output_file_prefix",
                         help="write generated instances to files whose names begin with the given prefix")
+    parser.add_argument("--print_normalized_domain", action="store_true",
+                        help="print the normalized PDDL domain")
+    parser.add_argument("--print_translated_domain", action="store_true",
+                        help="print the ASP program that the input PDDL domain is translated to")
+    parser.add_argument("--print_asp_model", action="store_true",
+                        help="print the model of the ASP program corresponding to the input PDDL domain")
     args = parser.parse_args()
 
     domain = pddl_parser.open(args.domain)
@@ -106,7 +112,10 @@ def main():
     print("Normalizing axioms to Stratified Datalog")
     # TODO verify stratification?
     normalize.normalize_axioms(domain)
-#    domain.dump()
+    if args.print_normalized_domain:
+        print("Normalized PDDL domain:")
+        domain.dump()
+        print()
 
     print("Translating to ASP")
     if args.num_objects:
@@ -120,7 +129,10 @@ def main():
         # string, each entry has single item which is int
         translated_domain = asp_translator.translate_by_universe(domain,
                                                                  typed_universe)
-#    print(translated_domain)
+    if args.print_translated_domain:
+        print("ASP program of translated domain:")
+        print(translated_domain)
+        print()
 
     if args.num_instances < 0:
         print("Error: num_instances must be a non-negative number.")
@@ -132,7 +144,10 @@ def main():
     ctl.ground()
     with ctl.solve(yield_ = True) as handle:
         for model in handle:
-#            print(model)
+            if args.print_asp_model:
+                print("ASP model:")
+                print(model)
+                print()
             print(f"Creating instance number {model.number} from ASP model")
             instance = create_instance(model, domain)
             if args.output_file_prefix:
