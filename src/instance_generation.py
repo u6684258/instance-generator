@@ -91,8 +91,8 @@ def main():
     arg_group = parser.add_mutually_exclusive_group(required=True)
     arg_group.add_argument("-n","--num_objects", type=int,
                         help="number of objects the instances will have")
-    arg_group.add_argument("-t", "--typed_universe",
-                           help="JSON file specifying how many objects of which types the instances will have")
+    arg_group.add_argument("-e", "--extended_input",
+                           help="JSON file specifying how many objects of which types the instances will have, and potentially constraints on how many atoms of a certain predicate there will be")
     parser.add_argument("num_instances", nargs='?', type=int, default=1,
                         help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
     parser.add_argument("-o", "--output_file_prefix",
@@ -123,12 +123,18 @@ def main():
         translated_domain = asp_translator.translate_by_size(domain,
                                                              universe_size)
     else:
-        file = open(args.typed_universe)
-        typed_universe = json.load(file)
-        # TODO verify that typed_universe has correct form? i. e. each key is
-        # string, each entry has single item which is int
+        file = open(args.extended_input)
+        extended_input = json.load(file)
+        # TODO verify that extended_input has correct form? e. g., each key in
+        # universe is string and each entry has single item which is int
+        universe = extended_input["universe"]
+        if "cardinality_constraints" in extended_input:
+            constraints = extended_input["cardinality_constraints"]
+        else:
+            constraints = {}
         translated_domain = asp_translator.translate_by_universe(domain,
-                                                                 typed_universe)
+                                                                 universe,
+                                                                 constraints)
     if args.print_translated_domain:
         print("ASP program of translated domain:")
         print(translated_domain)

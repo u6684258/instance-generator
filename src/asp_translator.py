@@ -118,7 +118,8 @@ def translate_to_asp_term(pddl_term: str):
 class ASPGenerator:
     # assumes that domain.axioms are in Datalog form, i. e., rule bodies are
     # (implicitly existentially quantified) conjunctions of literals
-    def __init__(self, domain: pddl.Domain, typed_universe: dict):
+    def __init__(self, domain: pddl.Domain, typed_universe: dict,
+                 cardinality_constraints: dict):
         self.domain = domain
         self.universe_size = sum([n for t,n in typed_universe.items()])
         self.generic_type =  self._get_generic_type()
@@ -127,6 +128,8 @@ class ASPGenerator:
           # list of TypedObject (compared to domain.objects this also includes
           # the task-specific objects)
         self.basic_predicates = self._get_basic_predicates()
+        self.check_cardinality_constraints(cardinality_constraints)
+        self.cardinality_constraints = cardinality_constraints
 
 
     def _get_generic_type(self):
@@ -163,6 +166,15 @@ class ASPGenerator:
                 basic_predicates.append(pred)
         return basic_predicates
 
+    def check_cardinality_constraints(self, cardinality_constraints: dict):
+        # TODO check if given dictionary has correct form and if mentioned
+        # predicates are basic predicates of the PDDL domain
+        # TODO check if each key is string and if each item is list of length
+        # 2, with list elements being finite integers >= -1
+        # TODO check if each key is a name of a predicate in
+        # self.basic_predicates
+        print("TODO")
+
 
     def generate_type_facts(self):
         # generates a fact for each object specifying that it has the
@@ -180,38 +192,73 @@ class ASPGenerator:
 
 
     def generate_choice_predicates_rule(self):
-        # generates a choice rule that specifies all predicates which the ASP
+        # generates choice rules that specify which predicates the ASP
         # solver has to choose truth values for (this includes the basic
-        # predicates from the PDDL domain, as well as predicates for the types of
-        # the domain)
-        # TODO break into multiple choice rules (that take argument types into
-        # account) for more efficiency?
+        # predicates from the PDDL domain, as well as predicates for the types
+        # of the domain)
+        # TODO break generic choice rule further up into (to take argument
+        # types into account) for more efficiency? (if we do this, we can
+        # probably remove the parameter type axioms)
 
         max_arity = max(pred.get_arity() for pred in self.basic_predicates)
         variables = [f"Var_{i}" for i in range(1, max_arity + 1)]
+        choice_rules = []
+
+        # TODO following does not work; potential fix: move type-predicates
+        # from body into head analogous to example in clingo-guide, p. 35
+        # bottom
+        # basic predicates mentioned in the cardinality constraints have their
+        # own choice rules that reflect the respective cardinality constraints
+        covered_predicates = []
+        for pred_name, interval in self.cardinality_constraints.items():
+            translated_pred = translate_to_asp_predicate(pred_name)
+            pred = next(p for p in self.basic_predicates if p.name == pred_name)
+            parameter_string = ", ".join(variables[:pred.get_arity()])
+            lower = f"{interval[0]} <= " if interval[0] != -1 else ""
+            upper = f" <= {interval[1]}" if interval[1] != -1 else ""
+            head = f"{lower}{{{translated_pred}({parameter_string})}}{upper}"
+
+            # make rule safe by specifying the type each argument of the
+            # predicate must have
+            body_parts = []
+            for i in range(pred.get_arity()):
+                type_predicate = translate_to_asp_predicate(
+                        pred.arguments[i].type_name)
+                body_parts.append(f"{type_predicate}({variables[i]})")
+            body = ", ".join(body_parts)
+
+            choice_rules.append(f"{head} :- {body}.")
+            covered_predicates.append(pred_name)
+
+        # generic choice rule that covers the remaining basic predicates
         head_parts = []
 
-        # add predicates for PDDL types to choice rule
+        # add predicates for PDDL types to generic choice rule
         types = self.domain.types
         if len(types) > 1:
             for t in types:
                 type_name = translate_to_asp_predicate(t.name)
                 head_parts.append(type_name + f"({variables[0]})")
 
-        # add the basic predicates to choice rule
+        # add the remaining basic predicates to generic choice rule
         for p in self.basic_predicates:
+            if p.name in covered_predicates:
+                continue
             parameters = [variables[i] for i in range(p.get_arity())]
             predicate_name = translate_to_asp_predicate(p.name)
             head_parts.append(predicate_name + "(" + ", ".join(parameters) + ")")
         head = "{" + "; ".join(head_parts) + "}"
 
-        # make rule safe
+        # make generic choice rule safe
         generic_type = translate_to_asp_predicate(self.generic_type.name)
-        body_parts = [f"{generic_type}({var})" for var in variables]
+        new_max_arity = max(pred.get_arity() for pred in self.basic_predicates \
+                            if pred.name not in covered_predicates)
+        body_parts = [f"{generic_type}({var})" for var in \
+                      variables[:new_max_arity]]
         body = ", ".join(body_parts)
+        choice_rules.append(f"{head} :- {body}.")
 
-        rule = f"{head} :- {body}."
-        return [rule]
+        return choice_rules
 
 
     def generate_axioms(self):
@@ -299,7 +346,8 @@ def translate_by_size(domain: pddl.Domain, universe_size: int):
     asp_generator = ASPGenerator(domain, universe)
     return _translate(asp_generator)
 
-def translate_by_universe(domain: pddl.Domain, typed_universe: dict):
+def translate_by_universe(domain: pddl.Domain, typed_universe: dict,
+                          cardinality_constraints: dict):
     if sum([n for t,n in typed_universe.items()]) <= 0:
         print("Error: Universe must contain at least one object.")
         sys.exit(1)
@@ -309,6 +357,6 @@ def translate_by_universe(domain: pddl.Domain, typed_universe: dict):
             print(f"Error: {t} is not mentioned as a type in the domain file.")
             sys.exit(1)
 
-    asp_generator = ASPGenerator(domain, typed_universe)
+    asp_generator = ASPGenerator(domain, typed_universe, cardinality_constraints)
     return _translate(asp_generator)
 
