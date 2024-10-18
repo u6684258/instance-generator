@@ -178,7 +178,7 @@ class ASPGenerator:
                 sys.exit(1)
 
             predicate = next(p for p in self.basic_predicates if \
-                    p.name == pred_name)
+                    p.name == predicate_name)
             max_cardinality = predicate.get_arity()** len(self.basic_predicates)
             if interval[0] > max_cardinality:
                 print(f"Error: The lower cardinality bound of predicate {predicate_name} is given as {interval[0]} but can be at most {max_cardinality}.")
