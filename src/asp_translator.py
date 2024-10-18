@@ -196,38 +196,38 @@ class ASPGenerator:
         # solver has to choose truth values for (this includes the basic
         # predicates from the PDDL domain, as well as predicates for the types
         # of the domain)
-        # TODO break generic choice rule further up into (to take argument
-        # types into account) for more efficiency? (if we do this, we can
-        # probably remove the parameter type axioms)
+        # basic predicates that are mentioned in the cardinality constraints
+        # (which are provided by the user) have their own choice rules that
+        # reflect the respective cardinality constraints
+        # TODO break generic choice rule further up (to take argument types
+        # into account) for more efficiency? (if we do this, we can probably
+        # remove the parameter type axioms)
 
         max_arity = max(pred.get_arity() for pred in self.basic_predicates)
         variables = [f"Var_{i}" for i in range(1, max_arity + 1)]
         choice_rules = []
 
-        # TODO following does not work; potential fix: move type-predicates
-        # from body into head analogous to example in clingo-guide, p. 35
-        # bottom
-        # basic predicates mentioned in the cardinality constraints have their
-        # own choice rules that reflect the respective cardinality constraints
+        # choice rules for basic predicates that are mentioned in the
+        # cardinality constraints
         covered_predicates = []
         for pred_name, interval in self.cardinality_constraints.items():
-            translated_pred = translate_to_asp_predicate(pred_name)
             pred = next(p for p in self.basic_predicates if p.name == pred_name)
             parameter_string = ", ".join(variables[:pred.get_arity()])
-            lower = f"{interval[0]} <= " if interval[0] != -1 else ""
-            upper = f" <= {interval[1]}" if interval[1] != -1 else ""
-            head = f"{lower}{{{translated_pred}({parameter_string})}}{upper}"
+            translated_pred = translate_to_asp_predicate(pred_name) + \
+                    "(" + parameter_string + ")"
 
-            # make rule safe by specifying the type each argument of the
-            # predicate must have
-            body_parts = []
+            type_predicates = []
             for i in range(pred.get_arity()):
-                type_predicate = translate_to_asp_predicate(
+                type_pred_name = translate_to_asp_predicate(
                         pred.arguments[i].type_name)
-                body_parts.append(f"{type_predicate}({variables[i]})")
-            body = ", ".join(body_parts)
+                type_predicates.append(f"{type_pred_name}({variables[i]})")
+            condition = ", ".join(type_predicates)
 
-            choice_rules.append(f"{head} :- {body}.")
+            lower_bound = f"{interval[0]} <= " if interval[0] != -1 else ""
+            upper_bound = f" <= {interval[1]}" if interval[1] != -1 else ""
+
+            choice_rules.append(f"{lower_bound}{{{translated_pred} : {\
+                    condition}}}{upper_bound}.")
             covered_predicates.append(pred_name)
 
         # generic choice rule that covers the remaining basic predicates
@@ -269,7 +269,8 @@ class ASPGenerator:
         axioms.extend(self.generate_type_hierarchy_axioms())
 
         # integrity constraint that enforces legality
-        legality_predicate = translate_to_asp_predicate(self.domain.legality_predicate)
+        legality_predicate = translate_to_asp_predicate(
+                self.domain.legality_predicate)
         axioms.append(f":- not {legality_predicate}().")
         return axioms
 
