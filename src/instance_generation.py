@@ -125,7 +125,9 @@ def main():
         file = open(args.extended_input)
         extended_input = json.load(file)
         # TODO verify that extended_input has correct form? e. g., each key in
-        # universe is string and each entry has single item which is int
+        # universe is string and each entry has single item which is int; each
+        # key in cardinality_constraints is string and each entry is list of
+        # length 2 whose elements are integers >= -1
         universe = extended_input["universe"]
         if "cardinality_constraints" in extended_input:
             constraints = extended_input["cardinality_constraints"]

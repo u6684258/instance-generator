@@ -167,13 +167,25 @@ class ASPGenerator:
         return basic_predicates
 
     def check_cardinality_constraints(self, cardinality_constraints: dict):
-        # TODO check if given dictionary has correct form and if mentioned
-        # predicates are basic predicates of the PDDL domain
-        # TODO check if each key is string and if each item is list of length
-        # 2, with list elements being finite integers >= -1
-        # TODO check if each key is a name of a predicate in
+        # check if each key of the given dictionary is a name of a predicate in
         # self.basic_predicates
-        print("TODO")
+        # check if the lower and upper bounds given in the items of the
+        # dictionary are valid cardinalities
+        predicate_names = [p.name for p in self.basic_predicates]
+        for predicate_name, interval in cardinality_constraints.items():
+            if predicate_name not in predicate_names:
+                print(f"Error: Predicate {predicate_name} mentioned in the cardinality constraints is not mentioned as a basic predicate in the domain file.")
+                sys.exit(1)
+
+            predicate = next(p for p in self.basic_predicates if \
+                    p.name == pred_name)
+            max_cardinality = predicate.get_arity()** len(self.basic_predicates)
+            if interval[0] > max_cardinality:
+                print(f"Error: The lower cardinality bound of predicate {predicate_name} is given as {interval[0]} but can be at most {max_cardinality}.")
+                sys.exit(1)
+            if interval[1] < -1:
+                print(f"Error: The upper cardinality bound of predicate {predicate_name} is given as {interval[1]} but must be at least 0 (or alternatively, default value -1).")
+                sys.exit(1)
 
 
     def generate_type_facts(self):
@@ -347,7 +359,7 @@ def translate(domain: pddl.Domain, universe: dict,
     pddl_types = [t.name for t in domain.types]
     for t in universe.keys():
         if not t in pddl_types:
-            print(f"Error: {t} is not mentioned as a type in the domain file.")
+            print(f"Error: Type {t} mentioned in the universe is not mentioned as a type in the domain file.")
             sys.exit(1)
 
     asp_generator = ASPGenerator(domain, universe, cardinality_constraints)
