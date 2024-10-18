@@ -338,26 +338,18 @@ def _translate(asp_generator: ASPGenerator):
     translated_domain = '\n'.join(translated_parts)
     return translated_domain
 
-def translate_by_size(domain: pddl.Domain, universe_size: int):
-    if universe_size <= 0:
-        print("Error: Size of universe must be at least 1.")
-        sys.exit(1)
 
-    universe = {"object": universe_size} # generic PDDL type "object"
-    asp_generator = ASPGenerator(domain, universe)
-    return _translate(asp_generator)
-
-def translate_by_universe(domain: pddl.Domain, typed_universe: dict,
+def translate(domain: pddl.Domain, universe: dict,
                           cardinality_constraints: dict):
-    if sum([n for t,n in typed_universe.items()]) <= 0:
+    if sum([n for t,n in universe.items()]) <= 0:
         print("Error: Universe must contain at least one object.")
         sys.exit(1)
-    domain_types = [t.name for t in domain.types]
-    for t in typed_universe.keys():
-        if not t in domain_types:
+    pddl_types = [t.name for t in domain.types]
+    for t in universe.keys():
+        if not t in pddl_types:
             print(f"Error: {t} is not mentioned as a type in the domain file.")
             sys.exit(1)
 
-    asp_generator = ASPGenerator(domain, typed_universe, cardinality_constraints)
+    asp_generator = ASPGenerator(domain, universe, cardinality_constraints)
     return _translate(asp_generator)
 

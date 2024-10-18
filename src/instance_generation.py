@@ -119,9 +119,8 @@ def main():
 
     print("Translating to ASP")
     if args.num_objects:
-        universe_size = args.num_objects
-        translated_domain = asp_translator.translate_by_size(domain,
-                                                             universe_size)
+        universe = {"object": args.num_objects} # generic PDDL type "object"
+        translated_domain = asp_translator.translate(domain, universe, {})
     else:
         file = open(args.extended_input)
         extended_input = json.load(file)
@@ -132,9 +131,8 @@ def main():
             constraints = extended_input["cardinality_constraints"]
         else:
             constraints = {}
-        translated_domain = asp_translator.translate_by_universe(domain,
-                                                                 universe,
-                                                                 constraints)
+        translated_domain = asp_translator.translate(domain, universe,
+                                                     constraints)
     if args.print_translated_domain:
         print("ASP program of translated domain:")
         print(translated_domain)
