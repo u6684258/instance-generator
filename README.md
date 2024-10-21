@@ -54,3 +54,39 @@ this:
 }
 ```
 
+
+## Remarks
+
+Although it is not enforced (because it is not required by PDDL), the instance
+generator expects the following:
+
+- The types of parameters of derived predicates are repeated in the axiom heads
+  that define the respective derived predicates, and
+- the types mentioned in an axiom head are the same as the ones mentioned for
+  the corresponding derived predicate in the `:predicate` section.
+
+For example,
+
+```
+; ...
+
+(:predicates
+  ;; ...
+  (has-some-paint ?r - robot)
+)
+
+;; ...
+
+(:axiom (has-some-paint ?r)
+  (exists (?c - color) (robot-has ?r ?c)))
+```
+
+can lead to unexpected behaviour of the instance generator. We recommend to
+repeat the types of parameters in axiom heads:
+
+```
+;; ...
+(:axiom (has-some-paint ?r - robot)
+;; ...
+```
+
