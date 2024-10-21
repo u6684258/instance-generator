@@ -39,7 +39,14 @@ def translate_to_asp_predicate(pddl_predicate_name: str):
       # (identical predicates in PDDL) are mapped to the same transformed
       # string.
 
-    # replace forbidden symbols '@' and '-'
+    # The Fast Downward parser adds the prefix "type@" internally if a type is
+    # used as a predicate. For the translation to ASP we need to undo this
+    # treatment.
+    if asp_predicate.startswith("type@"):
+        asp_predicate = asp_predicate.replace("type@", "", 1)
+
+    # replace symbols '@' and '-' (these two are treated explicitly because the
+    # Fast Downward parser allows / adds them)
     forbidden_symbols = get_forbidden_symbols(asp_predicate)
     if '@' in forbidden_symbols or '-' in forbidden_symbols:
         asp_predicate = replace_special_symbols(asp_predicate)

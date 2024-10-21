@@ -230,7 +230,7 @@ def parse_condition_aux(context, alist, negated, type_dict, predicate_dict):
             )
         parameters = parse_typed_list(context, alist[1])
         args = [alist[2]]
-    elif tag in predicate_dict:
+    elif tag in predicate_dict or tag in type_dict:
         return parse_literal(context, alist, type_dict, predicate_dict, negated=negated)
     else:
         context.error("Expected logical operator or predicate name", tag)
