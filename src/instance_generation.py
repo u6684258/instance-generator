@@ -1,18 +1,35 @@
 #! /usr/bin/env python3
 
 import argparse
-import json
 import sys
 
 from clingo import Control
 from clingo.solving import Model
 from clingo.symbol import SymbolType
 from collections import defaultdict
+from pydantic import BaseModel
+from typing import Dict, List, Optional
 
 import asp_translator
 import normalize
 import pddl
 import pddl_parser
+
+
+def load_and_validate_extended_input(extended_input_file_path: str):
+    # loads the extended input file and checks if it has the correct format
+    class ExtendedInput(BaseModel):
+        universe: Dict[str, int]
+        cardinality_constraints: Optional[Dict[str,List[int]]] = {}
+
+    file = open(extended_input_file_path)
+    data_string = '\n'.join(file.readlines())
+    extended_input = dict(ExtendedInput.model_validate_json(data_string))
+    for predicate_name, interval in extended_input["cardinality_constraints"].items():
+        if len(interval) != 2:
+            print(f"Error: The list given as interval in the cardinality constraints for {predicate_name} has length {len(interval)} but must have length 2.")
+            sys.exit(1)
+    return extended_input
 
 
 def create_instance(model: Model, domain: pddl.Domain):
@@ -122,17 +139,9 @@ def main():
         universe = {"object": args.num_objects} # generic PDDL type "object"
         translated_domain = asp_translator.translate(domain, universe, {})
     else:
-        file = open(args.extended_input)
-        extended_input = json.load(file)
-        # TODO verify that extended_input has correct form? e. g., each key in
-        # universe is string and each entry has single item which is int; each
-        # key in cardinality_constraints is string and each entry is list of
-        # length 2 whose elements are integers >= -1
+        extended_input = load_and_validate_extended_input(args.extended_input)
         universe = extended_input["universe"]
-        if "cardinality_constraints" in extended_input:
-            constraints = extended_input["cardinality_constraints"]
-        else:
-            constraints = {}
+        constraints = extended_input["cardinality_constraints"]
         translated_domain = asp_translator.translate(domain, universe,
                                                      constraints)
     if args.print_translated_domain:
