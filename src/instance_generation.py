@@ -1,7 +1,10 @@
 #! /usr/bin/env python3
 
 import argparse
+import shutil
+import subprocess
 import sys
+import tempfile
 
 from clingo import Control
 from clingo.solving import Model
@@ -17,7 +20,8 @@ import pddl_parser
 
 
 def load_and_validate_extended_input(extended_input_file_path: str):
-    # loads the extended input file and checks if it has the correct format
+    # loads the extended input file (JSON) and checks if it has the correct
+    # format (basic format is defined by ExtendedInput class)
     class ExtendedInput(BaseModel):
         universe: Dict[str, int]
         cardinality_constraints: Optional[Dict[str,List[int]]] = {}
@@ -32,10 +36,20 @@ def load_and_validate_extended_input(extended_input_file_path: str):
     return extended_input
 
 
-def create_instance(model: Model, domain: pddl.Domain):
-    asp_atoms = [sym for sym in model.symbols(shown=True)]
-    assert(all(sym.type is SymbolType.Function for sym in asp_atoms))
-    assert(all('_AT_' not in atom.name for atom in asp_atoms))
+def create_instance(asp_model, model_number: int, domain: pddl.Domain):
+    # builds the string of the PDDL instance that corresponds to the given ASP
+    # model
+    is_clingo_model = isinstance(asp_model, Model)
+    if is_clingo_model:
+        asp_atoms = [sym for sym in asp_model.symbols(shown=True)]
+        assert(all(sym.type is SymbolType.Function for sym in asp_atoms))
+        assert(all('_AT_' not in atom.name for atom in asp_atoms))
+          # the Fast Downward translator creates helper predicates whose
+          # translation to ASP contains '_AT_' but in the models of the answer set
+          # program those predicates should not occur
+    else: # from fasb we get the model as a string
+        assert(isinstance(asp_model, str))
+        asp_atoms = asp_model.split()
 
     # retrieve the PDDL objects (and their types) and the initial state atoms
     # from the atoms of the ASP model
@@ -43,13 +57,30 @@ def create_instance(model: Model, domain: pddl.Domain):
     initial_state = []
     pddl_type_names = [t.name.lower() for t in domain.types]
     for atom in asp_atoms:
-        atom_name = atom.name.replace(*('_DASH_', '-'))
+        if is_clingo_model:
+            atom_name = atom.name.replace(*('_DASH_', '-'))
+            atom_arguments = atom.arguments
+        else:
+            if '(' in atom: # the atom has arguments
+                atom_name = atom[:atom.index('(')].replace(*('_DASH_', '-'))
+                  # removes everything starting at '(' (i. e. the arguments and
+                  # the brackets) and replaces '_DASH_' with '-' (undoing the
+                  # replacement from the ASP translator)
+                atom_arguments = atom[atom.index('(')+1:-1].split(',')
+                  # removes '(' and everything before and removes last element,
+                  # then splits the remaining part (i. e., the arguments) on ','
+            else: # the atom is nullary
+                atom_name = atom.replace(*('_DASH_', '-'))
+                atom_arguments = []
         if atom_name in pddl_type_names:
             # if the atom describes the type of an object, add that object and
             # that type to the objects-dictionary
-            assert(len(atom.arguments) == 1)
-            argument = atom.arguments[0]
-            object_string = f"obj_{argument.number}" if argument.type is SymbolType.Number else str(argument)
+            assert(len(atom_arguments) == 1)
+            argument = atom_arguments[0]
+            if is_clingo_model:
+                object_string = f"obj_{argument.number}" if argument.type is SymbolType.Number else str(argument).replace(*('_DASH_', '-'))
+            else:
+                object_string = f"obj_{argument}" if argument.isdigit() else argument.replace(*('_DASH_', '-'))
             object_type = pddl.Type("object")
             for t in domain.types:
                 if atom_name == t.name.lower():
@@ -60,8 +91,11 @@ def create_instance(model: Model, domain: pddl.Domain):
             # else the atom is a basic predicate and thus is added to the
             # initial state
             arguments = []
-            for arg in atom.arguments:
-                argument_string = f"obj_{arg.number}" if arg.type is SymbolType.Number else str(arg)
+            for arg in atom_arguments:
+                if is_clingo_model:
+                    argument_string = f"obj_{arg.number}" if arg.type is SymbolType.Number else str(arg).replace(*('_DASH_', '-'))
+                else:
+                    argument_string = f"obj_{argument}" if argument.isdigit() else argument.replace(*('_DASH_', '-'))
                 arguments.append(argument_string)
             initial_state.append(f"({atom_name} {' '.join(arguments)})")
 
@@ -72,7 +106,7 @@ def create_instance(model: Model, domain: pddl.Domain):
         non_base_types = [t for t in types if t.name.lower() not in
                           base_type_names]
         assert(len(non_base_types) == 1)
-          # an object can have only one type that is not a super type (base type)
+          # an object can have only one type that is not a base type
         object_type = non_base_types[0]
         typed_objects.append(f"{obj} - {object_type.name.lower()}")
 
@@ -96,7 +130,7 @@ def create_instance(model: Model, domain: pddl.Domain):
     if has_action_costs:
         instance_parts.append("(:metric minimize (total-cost))")
 
-    instance = f"(define (problem p{model.number})\n(:domain {domain.domain_name})\n{'\n'.join(instance_parts)}\n\n)"
+    instance = f"(define (problem p{model_number})\n(:domain {domain.domain_name})\n{'\n'.join(instance_parts)}\n\n)"
     return instance
 
 
@@ -112,6 +146,10 @@ def main():
                            help="JSON file specifying how many objects of which types the instances will have, and potentially constraints on how many atoms of a certain predicate there will be")
     parser.add_argument("num_instances", nargs='?', type=int, default=1,
                         help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
+    parser.add_argument("--representative", action="store_true",
+                        help="generate a set of instances  that is representative for the given domain, the generated number of instances will not be the number given with the num_instances option (though that option influences the set of representative instances), this option requires fasb on the PATH")
+      # TODO investigate and document how exactly this interacts with
+      # num_instances (which is a clingo option that fasb also takes)
     parser.add_argument("-o", "--output_file_prefix",
                         help="write generated instances to files whose names begin with the given prefix")
     parser.add_argument("--print_normalized_domain", action="store_true",
@@ -119,7 +157,7 @@ def main():
     parser.add_argument("--print_translated_domain", action="store_true",
                         help="print the ASP program that the input PDDL domain is translated to")
     parser.add_argument("--print_asp_model", action="store_true",
-                        help="print the model of the ASP program corresponding to the input PDDL domain")
+                        help="print the model of the ASP program that corresponds to the input PDDL domain")
     args = parser.parse_args()
 
     domain = pddl_parser.open(args.domain)
@@ -152,33 +190,72 @@ def main():
     if args.num_instances < 0:
         print("Error: num_instances must be a non-negative number.")
         sys.exit(1)
-    print("Calling clingo")
-    ctl = Control([f"{args.num_instances}"])
-#    ctl = Control(["0"]) # compute all models
-    ctl.add(translated_domain)
-    ctl.ground()
-    with ctl.solve(yield_ = True) as handle:
-        for model in handle:
+
+    if args.representative:
+        with tempfile.NamedTemporaryFile(mode="w+t") as translated_domain_file:
+            with tempfile.NamedTemporaryFile(mode="w+t") as script_file:
+                # write the translated domain to a temporary file in
+                # preparation of calling fasb
+                translated_domain_file.write(translated_domain)
+                translated_domain_file.flush()
+                # write the script for the fasb call (the script contains a
+                # single line, calling mode soe)
+                script_file.write(":soe")
+                script_file.flush()
+                print("Calling fasb")
+                fasb_output = subprocess.run([shutil.which("fasb"), translated_domain_file.name, f"{args.num_instances}", script_file.name], capture_output=True, text=True)
+        if fasb_output.returncode != 0:
+            print("fasb exited with the following error message:")
+            print(fasb_output.stderr)
+            sys.exit(1)
+        print(fasb_output)
+        # extract the models from the output of fasb (skip the first four lines
+        # and then every second line)
+        models = fasb_output.stdout.splitlines()[4::2]
+        model_number = 0
+        for model in models:
+            model_number += 1
             if args.print_asp_model:
-                print("ASP model:")
+                print(f"ASP model of instance number {model_number}:")
                 print(model)
-                print()
-            print(f"Creating instance number {model.number} from ASP model")
-            instance = create_instance(model, domain)
+            print(f"Creating instance number {model_number} from ASP model")
+            instance = create_instance(model, model_number, domain)
             if args.output_file_prefix:
-                with open(f"{args.output_file_prefix}{model.number}.pddl",
+                with open(f"{args.output_file_prefix}{model_number}.pddl",
                           "w") as f:
                     f.write(instance)
                     f.write("\n\n")
             else:
                 print(instance)
                 print()
-        if handle.get().satisfiable:
-            print("Finished generating instances.")
-        elif handle.get().unsatisfiable:
-            print("The provided domain characterization is not satisfiable.")
-        else:
-            print("Failed to find a model for the provided domain characterization. Satisfiability unknown.")
+        print("Finished generating representative instances.")
+
+    else:
+        print("Calling clingo")
+        ctl = Control([f"{args.num_instances}"])
+        ctl.add(translated_domain)
+        ctl.ground()
+        with ctl.solve(yield_ = True) as handle:
+            for model in handle:
+                if args.print_asp_model:
+                    print(f"ASP model of instance number {model.number}:")
+                    print(model)
+                print(f"Creating instance number {model.number} from ASP model")
+                instance = create_instance(model, model.number, domain)
+                if args.output_file_prefix:
+                    with open(f"{args.output_file_prefix}{model.number}.pddl",
+                              "w") as f:
+                        f.write(instance)
+                        f.write("\n\n")
+                else:
+                    print(instance)
+                    print()
+            if handle.get().satisfiable:
+                print("Finished generating instances.")
+            elif handle.get().unsatisfiable:
+                print("The provided domain characterization is not satisfiable. No instance can be generated for it.")
+            else:
+                print("Failed to find a model for the provided domain characterization. Satisfiability unknown.")
 
 
 if __name__ == "__main__":
