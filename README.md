@@ -9,17 +9,37 @@ International Conference on Automated Planning and Scheduling (ICAPS 2024), pp.
 ## Usage
 
 - `-h` or `--help` to see all options of the program
-- most simple usage: `./instance_generation.py <domain-file> -n <universe-size>`
+- Basic usage: `./instance_generation.py <domain-file> -n <universe-size>`
+  generates a single instance where
   - `<domain-file>` is the path to the PDDL domain file for which an instance
-    will be generated
+    will be generated, and
   - `<universe-size>` is a positive integer that specifies how many objects the
-    generated instance will have
+    generated instance will have.
 - **TODO** add example domain (blocksworld, or floortile because of types) and
   example JSDON-file to repo, and explain how could for example call program
   for them
 
 
-## Format of extended-input file
+## Representative Instances
+
+To generate a set of representative instances for a given domain (option
+`--representative`) the [fasb system](https://github.com/drwadu/fasb) with
+interpreter mode enabled must be on the PATH.
+
+To build or install fasb follow the instructions at
+<https://github.com/drwadu/fasb> and make sure to add the option
+`--features interpreter` when building / installing fasb (if this mode is not
+enabled the instance generator will not be able to use fasb).
+
+After building or installing fasb add the executable to PATH.
+
+**TODO** mention that fasb also uses clingo internally? mention soe (paper)?
+
+
+## Format of Extended-Input File
+
+**TODO** explain what extended-input file is and what it does (and why might
+want to create / use one)
 
 JSON file with a key `universe` and, optionally, a key
 `cardinality_constraints`. The values for both keys are dictionaries that must
@@ -28,7 +48,7 @@ be structured as follows:
 `universe`: The keys are types mentioned in the PDDL domain file (use PDDL's
 generic type "object" if the domain does not use types or if one wishes to not
 require a specific type). Their values are positive integers that specify how
-many objects of the corresponding types the generated instances will have
+many objects of the corresponding types the generated instances will have.
 
 `cardinality_constraints`: The keys are names of basic predicates mentioned in
 the PDDL domain file. The values are lists where each list contains two
@@ -55,15 +75,16 @@ this:
 ```
 
 
-## Remarks
+## Remarks on Domain Encoding
 
 Although it is not enforced (because it is not required by PDDL), the instance
-generator expects the following:
+generator expects the following from domain files:
 
 - The types of parameters of derived predicates are repeated in the axiom heads
-  that define the respective derived predicates, and
-- the types mentioned in an axiom head are the same as the ones mentioned for
-  the corresponding derived predicate in the `:predicate` section.
+  that define the respective derived predicates.
+- The types mentioned in an axiom head are consistent with those of the
+  corresponding derived predicate in the `:predicate` section (the type is
+  repeated or the axiom head specifies a subtype).
 
 For example,
 
@@ -78,15 +99,25 @@ For example,
 ;; ...
 
 (:axiom (has-some-paint ?r)
-  (exists (?c - color) (robot-has ?r ?c)))
+  (;; axiom body
+  ))
 ```
 
-can lead to unexpected behaviour of the instance generator. We recommend to
-repeat the types of parameters in axiom heads:
+could lead to unexpected behaviour of the instance generator because the axiom
+head does not repeat the type `robot` of `?r` that is specified for predicate
+`has-some-paint` in the `:predicate` section. We recommend to repeat the types
+of parameters in axiom heads:
 
 ```
 ;; ...
 (:axiom (has-some-paint ?r - robot)
 ;; ...
 ```
+
+
+## Required Python Modules
+
+**TODO** add links?
+- clingo
+- pydantic
 
