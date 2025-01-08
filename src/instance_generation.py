@@ -192,6 +192,9 @@ def main():
         sys.exit(1)
 
     if args.representative:
+        if not shutil.which("fasb"):
+            print("Executable of fasb not found on PATH. For option --representative fasb must be on PATH.")
+            sys.exit(1)
         with tempfile.NamedTemporaryFile(mode="w+t") as translated_domain_file:
             with tempfile.NamedTemporaryFile(mode="w+t") as script_file:
                 # write the translated domain to a temporary file in
@@ -208,7 +211,6 @@ def main():
             print("fasb exited with the following error message:")
             print(fasb_output.stderr)
             sys.exit(1)
-        print(fasb_output)
         # extract the models from the output of fasb (skip the first four lines
         # and then every second line)
         models = fasb_output.stdout.splitlines()[4::2]
