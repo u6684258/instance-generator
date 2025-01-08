@@ -95,7 +95,7 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
                 if is_clingo_model:
                     argument_string = f"obj_{arg.number}" if arg.type is SymbolType.Number else str(arg).replace(*('_DASH_', '-'))
                 else:
-                    argument_string = f"obj_{argument}" if argument.isdigit() else argument.replace(*('_DASH_', '-'))
+                    argument_string = f"obj_{arg}" if argument.isdigit() else argument.replace(*('_DASH_', '-'))
                 arguments.append(argument_string)
             initial_state.append(f"({atom_name} {' '.join(arguments)})")
 
