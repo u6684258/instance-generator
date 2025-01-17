@@ -149,7 +149,7 @@ def main():
     parser.add_argument("--representative", action="store_true",
                         help="generate a set of instances  that is representative for the given domain, the generated number of instances will not be the number given with the num_instances option (though that option influences the set of representative instances), this option requires fasb on the PATH")
       # TODO investigate and document how exactly this interacts with
-      # num_instances (which is a clingo option that fasb also takes)
+      # num_instances
     parser.add_argument("-o", "--output_file_prefix",
                         help="write generated instances to files whose names begin with the given prefix")
     parser.add_argument("--print_normalized_domain", action="store_true",
@@ -192,48 +192,158 @@ def main():
         sys.exit(1)
 
     if args.representative:
-        if not shutil.which("fasb"):
-            print("Executable of fasb not found on PATH. For option --representative fasb must be on PATH.")
-            sys.exit(1)
-        with tempfile.NamedTemporaryFile(mode="w+t") as translated_domain_file:
-            with tempfile.NamedTemporaryFile(mode="w+t") as script_file:
-                # write the translated domain to a temporary file in
-                # preparation of calling fasb
-                translated_domain_file.write(translated_domain)
-                translated_domain_file.flush()
-                # write the script for the fasb call (the script contains a
-                # single line, calling mode soe)
-                script_file.write(":soe")
-                script_file.flush()
-                print("Calling fasb")
-                fasb_output = subprocess.run([shutil.which("fasb"), translated_domain_file.name, f"{args.num_instances}", script_file.name], capture_output=True, text=True)
-        if fasb_output.returncode != 0:
-            print("fasb exited with the following error message:")
-            print(fasb_output.stderr)
-            sys.exit(1)
-        # extract the models from the output of fasb (skip the first four lines
-        # and then every second line)
-        models = fasb_output.stdout.splitlines()[4::2]
-        model_number = 0
-        for model in models:
-            model_number += 1
-            if args.print_asp_model:
-                print(f"ASP model of instance number {model_number}:")
-                print(model)
-            print(f"Creating instance number {model_number} from ASP model")
-            instance = create_instance(model, model_number, domain)
-            if args.output_file_prefix:
-                with open(f"{args.output_file_prefix}{model_number}.pddl",
-                          "w") as f:
-                    f.write(instance)
-                    f.write("\n\n")
-            else:
-                print(instance)
-                print()
-        print("Finished generating representative instances.")
+        print("Calling clingo to compute cautious consequences")
+        # cautious consequences are atoms that appear in every answer set of an
+        # answer set program (i. e., atoms that will appear in every instance
+        # of a domain)
+        ctl = Control([f"{args.num_instances}"])
+        ctl.configuration.solve.enum_mode = "cautious"
+        ctl.add(translated_domain)
+        ctl.ground()
+        with ctl.solve(yield_ = True) as handle:
+            if not handle.get().satisfiable:
+                print(f"Clingo could not compute cautious consequences, reason: {handle.get()}")
+                sys.exit(1)
+            cautious_consequences = None
+              # overwrite this in every loop because only last computed model
+              # contains the actual cautious consequences
+            for model in handle:
+                cautious_consequences = model.symbols(shown=True)
+                # TODO use atoms here (and analogously below) instead of shown?
+                # soe uses shown
 
+        print("Calling clingo to compute brave consequences")
+        # brave consequences are atoms that appear in at least one answer set
+        # of an answer set program (i. e., atoms that will appear in at least
+        # one instance of a domain)
+        ctl = Control([f"{args.num_instances}"])
+        ctl.configuration.solve.enum_mode = "brave"
+        ctl.add(translated_domain)
+        ctl.ground()
+        with ctl.solve(yield_ = True) as handle:
+            if not handle.get().satisfiable:
+                print(f"Clingo could not compute brave consequences, reason: {handle.get()}")
+                sys.exit(1)
+            brave_consequences = None
+              # overwrite this in every loop because only last computed model
+              # contains the actual brave consequences
+            for model in handle:
+                brave_consequences = model.symbols(shown=True)
+
+        # compute representative instances
+        target_atoms = [atom for atom in brave_consequences if atom not in cautious_consequences]
+          # we choose the facet inducing atoms as target atoms, i. e., the
+          # atoms that appear in some answer set but not in all answer sets
+        if not target_atoms:
+              # brave_consequences == cautious_consequences, i. e., there is
+              # exactly one answer set
+            print("No facet inducing atoms, i. e., the domain characterization admits exactly one instance:")
+            ctl = Control([f"{args.num_instances}"])
+            ctl.add(translated_domain)
+            ctl.ground()
+            with ctl.solve(yield_ = True) as handle:
+                if args.print_asp_model:
+                    print(f"ASP model of instance:")
+                    print(model)
+                print(f"Creating instance from ASP model")
+                instance = create_instance(handle.model(), 1, domain)
+                if args.output_file_prefix:
+                    with open(f"{args.output_file_prefix}{model.number}.pddl",
+                              "w") as f:
+                        f.write(instance)
+                        f.write("\n\n")
+                else:
+                    print(instance)
+            sys.exit(0)
+        sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
+          # :- not a1, not a2, not a3, ..., not an.
+          # ensures that each answer set includes at least one target atom
+          # TODO is this rule really useful? it gets subsumed by the rules
+          # added in each iteration
+        model_number = 0
+        while target_atoms:
+            model_number += 1
+            current_target = target_atoms[0]
+            # TODO choose current target atom according to more sophisticated
+            # strategy than just using the first one?
+            ctl = Control([f"{args.num_instances}"])
+              # uses default "auto" for ctl.configuration.solve.enum_mode
+            ctl.add(translated_domain)
+            ctl.add(sieve_rule)
+            ctl.add(f":- not {current_target}.")
+            ctl.ground()
+            with ctl.solve(yield_ = True) as handle:
+                if handle.get().satisfiable:
+                    model = handle.model()
+                    # TODO choose model according to more sophisticated
+                    # strategy than just using first one?
+                    if args.print_asp_model:
+                        print(f"ASP model of instance number {model_number}:")
+                        print(model)
+                    print(f"Creating instance number {model_number} from ASP model")
+                    instance = create_instance(model, model_number, domain)
+                    if args.output_file_prefix:
+                        with open(f"{args.output_file_prefix}{model_number}.pddl",
+                                  "w") as f:
+                            f.write(instance)
+                            f.write("\n\n")
+                    else:
+                        print(instance)
+                        print()
+                    target_atoms = [atom for atom in target_atoms if atom not in model.symbols(atoms=True)]
+                      # all target atoms occuring in the current ASP model are
+                      # covered and thus are removed from target_atoms
+                else:
+                    # this should not be able to happen since there must be a
+                    # solution for each facet-inducing atom (which are the
+                    # target atoms)
+                    print(f"Could not compute ASP model for current target atom '{str(current_target)}', reason: {handle.get()}")
+                    sys.exit(1)
+        print("Finished generating representative instances.")
+######## old way to compute representative instances using fasb's mode soe as a
+######## black box
+#        if not shutil.which("fasb"):
+#            print("Executable of fasb not found on PATH. For option --representative fasb must be on PATH.")
+#            sys.exit(1)
+#        with tempfile.NamedTemporaryFile(mode="w+t") as translated_domain_file:
+#            with tempfile.NamedTemporaryFile(mode="w+t") as script_file:
+#                # write the translated domain to a temporary file in
+#                # preparation of calling fasb
+#                translated_domain_file.write(translated_domain)
+#                translated_domain_file.flush()
+#                # write the script for the fasb call (the script contains a
+#                # single line, calling mode soe)
+#                script_file.write(":soe")
+#                script_file.flush()
+#                print("Calling fasb")
+#                fasb_output = subprocess.run([shutil.which("fasb"), translated_domain_file.name, f"{args.num_instances}", script_file.name], capture_output=True, text=True)
+#        if fasb_output.returncode != 0:
+#            print("fasb exited with the following error message:")
+#            print(fasb_output.stderr)
+#            sys.exit(1)
+#        # extract the models from the output of fasb (skip the first four lines
+#        # and then every second line)
+#        models = fasb_output.stdout.splitlines()[4::2]
+#        model_number = 0
+#        for model in models:
+#            model_number += 1
+#            if args.print_asp_model:
+#                print(f"ASP model of instance number {model_number}:")
+#                print(model)
+#            print(f"Creating instance number {model_number} from ASP model")
+#            instance = create_instance(model, model_number, domain)
+#            if args.output_file_prefix:
+#                with open(f"{args.output_file_prefix}{model_number}.pddl",
+#                          "w") as f:
+#                    f.write(instance)
+#                    f.write("\n\n")
+#            else:
+#                print(instance)
+#                print()
+#        print("Finished generating representative instances.")
+########
     else:
-        print("Calling clingo")
+        print("Calling ASP solver clingo")
         ctl = Control([f"{args.num_instances}"])
         ctl.add(translated_domain)
         ctl.ground()
