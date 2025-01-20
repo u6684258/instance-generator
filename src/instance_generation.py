@@ -147,9 +147,7 @@ def main():
     parser.add_argument("num_instances", nargs='?', type=int, default=1,
                         help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
     parser.add_argument("--representative", action="store_true",
-                        help="generate a set of instances  that is representative for the given domain, the generated number of instances will not be the number given with the num_instances option (though that option influences the set of representative instances), this option requires fasb on the PATH")
-      # TODO investigate and document how exactly this interacts with
-      # num_instances
+                        help="generate a set of instances that is representative for the given domain")
     parser.add_argument("-o", "--output_file_prefix",
                         help="write generated instances to files whose names begin with the given prefix")
     parser.add_argument("--print_normalized_domain", action="store_true",
@@ -161,8 +159,6 @@ def main():
     args = parser.parse_args()
 
     domain = pddl_parser.open(args.domain)
-#    domain.dump()
-#    print()
 
     print("Normalizing axioms to Stratified Datalog")
     # TODO verify stratification?
@@ -193,7 +189,10 @@ def main():
 
     if args.representative:
         print("Calling ASP solver clingo")
-        ctl = Control([f"{args.num_instances}"])
+#        ctl = Control([f"{args.num_instances}"])
+        ctl = Control(["0"])
+          # "0", i. e. "all models", because for cautious / brave consequences
+          # clingo should consider all models
         ctl.add(translated_domain)
         ctl.ground()
 
@@ -265,7 +264,7 @@ def main():
 #          # TODO is this rule really useful? it gets subsumed by the rules
 #          # added in each iteration
         model_number = 0
-        while target_atoms:
+        while target_atoms and model_number < args.num_instances:
             model_number += 1
             current_target = target_atoms[0]
             # TODO choose current target atom according to more sophisticated
@@ -292,7 +291,7 @@ def main():
                             f.write(instance)
                             f.write("\n\n")
                     else:
-#                        print(instance)
+                        print(instance)
                         print()
                     target_atoms = [atom for atom in target_atoms if atom not in model.symbols(atoms=True)]
                       # all target atoms occuring in the current ASP model are
