@@ -206,7 +206,7 @@ def main():
             if not handle.get().satisfiable:
                 print(f"Clingo could not compute cautious consequences, reason: {handle.get()}")
                 sys.exit(1)
-            cautious_consequences = None
+            cautious_consequences = []
               # overwrite this in every loop because only last computed model
               # contains the actual cautious consequences
             for model in handle:
@@ -226,7 +226,7 @@ def main():
             if not handle.get().satisfiable:
                 print(f"Clingo could not compute brave consequences, reason: {handle.get()}")
                 sys.exit(1)
-            brave_consequences = None
+            brave_consequences = []
               # overwrite this in every loop because only last computed model
               # contains the actual brave consequences
             for model in handle:
@@ -248,7 +248,7 @@ def main():
             with ctl.solve(yield_ = True) as handle:
                 if args.print_asp_model:
                     print(f"ASP model of instance:")
-                    print(model)
+                    print(handle.model())
                 print(f"Creating instance from ASP model")
                 instance = create_instance(handle.model(), 1, domain)
                 if args.output_file_prefix:
