@@ -21,7 +21,7 @@ import pddl_parser
 
 def load_and_validate_extended_input(extended_input_file_path: str):
     # loads the extended input file (JSON) and checks if it has the correct
-    # format (basic format is defined by ExtendedInput class)
+    # format (the basic format is defined by the ExtendedInput class)
     class ExtendedInput(BaseModel):
         universe: Dict[str, int]
         cardinality_constraints: Optional[Dict[str,List[int]]] = {}
@@ -29,7 +29,8 @@ def load_and_validate_extended_input(extended_input_file_path: str):
     file = open(extended_input_file_path)
     data_string = '\n'.join(file.readlines())
     extended_input = dict(ExtendedInput.model_validate_json(data_string))
-    for predicate_name, interval in extended_input["cardinality_constraints"].items():
+    for predicate_name, interval in \
+            extended_input["cardinality_constraints"].items():
         if len(interval) != 2:
             print(f"Error: The list given as interval in the cardinality constraints for {predicate_name} has length {len(interval)} but must have length 2.")
             sys.exit(1)
@@ -45,8 +46,8 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
         assert(all(sym.type is SymbolType.Function for sym in asp_atoms))
         assert(all('_AT_' not in atom.name for atom in asp_atoms))
           # the Fast Downward translator creates helper predicates whose
-          # translation to ASP contains '_AT_' but in the models of the answer set
-          # program those predicates should not occur
+          # translation to ASP contains '_AT_' but in the models of the answer
+          # set program those predicates should not occur
     else: # from fasb we get the model as a string
         assert(isinstance(asp_model, str))
         asp_atoms = asp_model.split()
@@ -78,9 +79,12 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
             assert(len(atom_arguments) == 1)
             argument = atom_arguments[0]
             if is_clingo_model:
-                object_string = f"obj_{argument.number}" if argument.type is SymbolType.Number else str(argument).replace(*('_DASH_', '-'))
+                object_string = f"obj_{argument.number}" if \
+                        argument.type is SymbolType.Number else \
+                        str(argument).replace(*('_DASH_', '-'))
             else:
-                object_string = f"obj_{argument}" if argument.isdigit() else argument.replace(*('_DASH_', '-'))
+                object_string = f"obj_{argument}" if argument.isdigit() else \
+                        argument.replace(*('_DASH_', '-'))
             object_type = pddl.Type("object")
             for t in domain.types:
                 if atom_name == t.name.lower():
@@ -93,9 +97,12 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
             arguments = []
             for arg in atom_arguments:
                 if is_clingo_model:
-                    argument_string = f"obj_{arg.number}" if arg.type is SymbolType.Number else str(arg).replace(*('_DASH_', '-'))
+                    argument_string = f"obj_{arg.number}" if \
+                            arg.type is SymbolType.Number else \
+                            str(arg).replace(*('_DASH_', '-'))
                 else:
-                    argument_string = f"obj_{arg}" if argument.isdigit() else argument.replace(*('_DASH_', '-'))
+                    argument_string = f"obj_{arg}" if argument.isdigit() else \
+                            argument.replace(*('_DASH_', '-'))
                 arguments.append(argument_string)
             initial_state.append(f"({atom_name} {' '.join(arguments)})")
 
@@ -201,14 +208,14 @@ def main():
         # answer set program (i. e., atoms that will appear in every instance
         # of a domain)
         ctl.configuration.solve.enum_mode = "cautious"
-        with ctl.solve(yield_ = True) as handle:
-            if not handle.get().satisfiable:
-                print(f"Clingo could not compute cautious consequences, reason: {handle.get()}")
+        with ctl.solve(yield_ = True) as solve_handle:
+            if not solve_handle.get().satisfiable:
+                print(f"Clingo could not compute cautious consequences, reason: {solve_handle.get()}")
                 sys.exit(1)
             cautious_consequences = []
               # overwrite this in every loop because only last computed model
               # contains the actual cautious consequences
-            for model in handle:
+            for model in solve_handle:
                 cautious_consequences = model.symbols(shown=True)
                 # TODO use atoms here (and analogously below) instead of shown?
                 # soe uses shown
@@ -221,20 +228,21 @@ def main():
 #        ctl.add(translated_domain)
 #        ctl.ground()
         ctl.configuration.solve.enum_mode = "brave"
-        with ctl.solve(yield_ = True) as handle:
-            if not handle.get().satisfiable:
-                print(f"Clingo could not compute brave consequences, reason: {handle.get()}")
+        with ctl.solve(yield_ = True) as solve_handle:
+            if not solve_handle.get().satisfiable:
+                print(f"Clingo could not compute brave consequences, reason: {solve_handle.get()}")
                 sys.exit(1)
             brave_consequences = []
               # overwrite this in every loop because only last computed model
               # contains the actual brave consequences
-            for model in handle:
+            for model in solve_handle:
                 brave_consequences = model.symbols(shown=True)
 
         # compute representative instances
         ctl.configuration.solve.enum_mode = "auto"
           # auto is the default value to compute answer sets
-        target_atoms = [atom for atom in brave_consequences if atom not in cautious_consequences]
+        target_atoms = [atom for atom in brave_consequences if atom not in
+                        cautious_consequences]
           # we choose the facet inducing atoms as target atoms, i. e., the
           # atoms that appear in some answer set but not in all answer sets
         if not target_atoms:
@@ -244,12 +252,12 @@ def main():
 #            ctl = Control([f"{args.num_instances}"])
 #            ctl.add(translated_domain)
 #            ctl.ground()
-            with ctl.solve(yield_ = True) as handle:
+            with ctl.solve(yield_ = True) as solve_handle:
                 if args.print_asp_model:
                     print(f"ASP model of instance:")
-                    print(handle.model())
+                    print(solve_handle.model())
                 print(f"Creating instance from ASP model")
-                instance = create_instance(handle.model(), 1, domain)
+                instance = create_instance(solve_handle.model(), 1, domain)
                 if args.output_file_prefix:
                     with open(f"{args.output_file_prefix}{model.number}.pddl",
                               "w") as f:
@@ -264,8 +272,12 @@ def main():
 #          # TODO is this rule really useful? it gets subsumed by the rules
 #          # added in each iteration
         model_number = 0
-        while target_atoms and model_number < args.num_instances:
+        while target_atoms:
             model_number += 1
+            if args.num_instances > 0 and model_number > args.num_instances:
+                # compute all possible instances if args.num_instances == 0,
+                # otherwise compute at most args.num_instances instances
+                break
             current_target = target_atoms[0]
             # TODO choose current target atom according to more sophisticated
             # strategy than just using the first one?
@@ -275,9 +287,10 @@ def main():
 ##            ctl.add(sieve_rule)
 ##            ctl.add(f":- not {current_target}.")
 #            ctl.ground()
-            with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) as handle:
-                if handle.get().satisfiable:
-                    model = handle.model()
+            with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
+                    as solve_handle:
+                if solve_handle.get().satisfiable:
+                    model = solve_handle.model()
                     # TODO choose model according to more sophisticated
                     # strategy than just using first one?
                     if args.print_asp_model:
@@ -293,14 +306,15 @@ def main():
                     else:
                         print(instance)
                         print()
-                    target_atoms = [atom for atom in target_atoms if atom not in model.symbols(atoms=True)]
+                    target_atoms = [atom for atom in target_atoms if atom not
+                                    in model.symbols(atoms=True)]
                       # all target atoms occuring in the current ASP model are
                       # covered and thus are removed from target_atoms
                 else:
                     # this should not be able to happen since there must be a
                     # solution for each facet-inducing atom (which are the
                     # target atoms)
-                    print(f"Could not compute ASP model for current target atom '{str(current_target)}', reason: {handle.get()}")
+                    print(f"Could not compute ASP model for current target atom '{str(current_target)}', reason: {solve_handle.get()}")
                     sys.exit(1)
         print("Finished generating representative instances.")
 ######## old way to compute representative instances using fasb's mode soe as a
@@ -350,8 +364,8 @@ def main():
         ctl = Control([f"{args.num_instances}"])
         ctl.add(translated_domain)
         ctl.ground()
-        with ctl.solve(yield_ = True) as handle:
-            for model in handle:
+        with ctl.solve(yield_ = True) as solve_handle:
+            for model in solve_handle:
                 if args.print_asp_model:
                     print(f"ASP model of instance number {model.number}:")
                     print(model)
@@ -365,9 +379,9 @@ def main():
                 else:
                     print(instance)
                     print()
-            if handle.get().satisfiable:
+            if solve_handle.get().satisfiable:
                 print("Finished generating instances.")
-            elif handle.get().unsatisfiable:
+            elif solve_handle.get().unsatisfiable:
                 print("The provided domain characterization is not satisfiable. No instance can be generated for it.")
             else:
                 print("Failed to find a model for the provided domain characterization. Satisfiability unknown.")
