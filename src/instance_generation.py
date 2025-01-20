@@ -192,14 +192,16 @@ def main():
         sys.exit(1)
 
     if args.representative:
+        print("Calling ASP solver clingo")
+        ctl = Control([f"{args.num_instances}"])
+        ctl.add(translated_domain)
+        ctl.ground()
+
         print("Calling clingo to compute cautious consequences")
         # cautious consequences are atoms that appear in every answer set of an
         # answer set program (i. e., atoms that will appear in every instance
         # of a domain)
-        ctl = Control([f"{args.num_instances}"])
         ctl.configuration.solve.enum_mode = "cautious"
-        ctl.add(translated_domain)
-        ctl.ground()
         with ctl.solve(yield_ = True) as handle:
             if not handle.get().satisfiable:
                 print(f"Clingo could not compute cautious consequences, reason: {handle.get()}")
@@ -216,10 +218,10 @@ def main():
         # brave consequences are atoms that appear in at least one answer set
         # of an answer set program (i. e., atoms that will appear in at least
         # one instance of a domain)
-        ctl = Control([f"{args.num_instances}"])
+#        ctl = Control([f"{args.num_instances}"])
+#        ctl.add(translated_domain)
+#        ctl.ground()
         ctl.configuration.solve.enum_mode = "brave"
-        ctl.add(translated_domain)
-        ctl.ground()
         with ctl.solve(yield_ = True) as handle:
             if not handle.get().satisfiable:
                 print(f"Clingo could not compute brave consequences, reason: {handle.get()}")
@@ -231,16 +233,18 @@ def main():
                 brave_consequences = model.symbols(shown=True)
 
         # compute representative instances
+        ctl.configuration.solve.enum_mode = "auto"
+          # auto is the default value to compute answer sets
         target_atoms = [atom for atom in brave_consequences if atom not in cautious_consequences]
           # we choose the facet inducing atoms as target atoms, i. e., the
           # atoms that appear in some answer set but not in all answer sets
         if not target_atoms:
               # brave_consequences == cautious_consequences, i. e., there is
               # exactly one answer set
-            print("No facet inducing atoms, i. e., the domain characterization admits exactly one instance:")
-            ctl = Control([f"{args.num_instances}"])
-            ctl.add(translated_domain)
-            ctl.ground()
+            print("No facet inducing atoms, i. e., the domain characterization admits exactly one instance.")
+#            ctl = Control([f"{args.num_instances}"])
+#            ctl.add(translated_domain)
+#            ctl.ground()
             with ctl.solve(yield_ = True) as handle:
                 if args.print_asp_model:
                     print(f"ASP model of instance:")
@@ -255,24 +259,24 @@ def main():
                 else:
                     print(instance)
             sys.exit(0)
-        sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
-          # :- not a1, not a2, not a3, ..., not an.
-          # ensures that each answer set includes at least one target atom
-          # TODO is this rule really useful? it gets subsumed by the rules
-          # added in each iteration
+#        sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
+#          # :- not a1, not a2, not a3, ..., not an.
+#          # ensures that each answer set includes at least one target atom
+#          # TODO is this rule really useful? it gets subsumed by the rules
+#          # added in each iteration
         model_number = 0
         while target_atoms:
             model_number += 1
             current_target = target_atoms[0]
             # TODO choose current target atom according to more sophisticated
             # strategy than just using the first one?
-            ctl = Control([f"{args.num_instances}"])
-              # uses default "auto" for ctl.configuration.solve.enum_mode
-            ctl.add(translated_domain)
-            ctl.add(sieve_rule)
-            ctl.add(f":- not {current_target}.")
-            ctl.ground()
-            with ctl.solve(yield_ = True) as handle:
+#            ctl = Control([f"{args.num_instances}"])
+#              # uses default "auto" for ctl.configuration.solve.enum_mode
+#            ctl.add(translated_domain)
+##            ctl.add(sieve_rule)
+##            ctl.add(f":- not {current_target}.")
+#            ctl.ground()
+            with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) as handle:
                 if handle.get().satisfiable:
                     model = handle.model()
                     # TODO choose model according to more sophisticated
@@ -288,7 +292,7 @@ def main():
                             f.write(instance)
                             f.write("\n\n")
                     else:
-                        print(instance)
+#                        print(instance)
                         print()
                     target_atoms = [atom for atom in target_atoms if atom not in model.symbols(atoms=True)]
                       # all target atoms occuring in the current ASP model are
