@@ -126,12 +126,12 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
     has_action_costs = len(domain.functions) == 1
     instance_parts = []
 
-    objects_string = f"(:objects\n  {'\n  '.join(typed_objects)}\n)"
+    objects_string = "(:objects\n  " + '\n  '.join(typed_objects) + "\n)"
     instance_parts.append(objects_string)
 
     if has_action_costs:
         initial_state.insert(0, "(= (total-cost) 0)")
-    initial_state_string = f"(:init\n  {'\n  '.join(initial_state)}\n)"
+    initial_state_string = "(:init\n  " + '\n  '.join(initial_state) + "\n)"
     instance_parts.append(initial_state_string)
 
     goal = f"(:goal\n  {domain.goal.pddl_string()}\n)"
@@ -140,7 +140,7 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
     if has_action_costs:
         instance_parts.append("(:metric minimize (total-cost))")
 
-    instance = f"(define (problem p{model_number})\n(:domain {domain.domain_name})\n{'\n'.join(instance_parts)}\n\n)"
+    instance = f"(define (problem p{model_number})\n(:domain {domain.domain_name})\n" + '\n'.join(instance_parts) + "\n\n)"
     return instance
 
 
@@ -345,7 +345,7 @@ def main():
                     # target atoms)
                     print(f"Could not compute ASP model for current target atom '{str(current_target)}', reason: {solve_handle.get()}")
                     sys.exit(1)
-        print("Finished generating representative instances.")
+        print(f"Finished generating {model_number} representative instances.")
         print(f"The representativeness score of the set of generated instances is {representativeness(target_atoms, models)}.")
 ######## old way to compute representative instances using fasb's mode soe as a
 ######## black box

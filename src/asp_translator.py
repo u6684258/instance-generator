@@ -245,8 +245,7 @@ class ASPGenerator:
             lower_bound = f"{interval[0]} <= " if interval[0] != -1 else ""
             upper_bound = f" <= {interval[1]}" if interval[1] != -1 else ""
 
-            choice_rules.append(f"{lower_bound}{{{translated_pred} : {\
-                    condition}}}{upper_bound}.")
+            choice_rules.append(f"{lower_bound}{{{translated_pred} : {condition}}}{upper_bound}.")
             covered_predicates.append(pred_name)
 
         # generic choice rule that covers the remaining basic predicates
