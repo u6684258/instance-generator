@@ -6,6 +6,9 @@ import subprocess
 import sys
 import tempfile
 
+from collections import Counter
+from math import log2
+
 from clingo import Control
 from clingo.solving import Model
 from clingo.symbol import SymbolType
@@ -141,6 +144,26 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
     return instance
 
 
+def shannon_entropy(atoms, models):
+    # Shannon entropy of the atoms over the models
+    # https://stackoverflow.com/questions/15450192/fastest-way-to-compute-entropy-in-python
+    atom_occurences = [atom for model in models for atom in model if atom in atoms]
+    atom_frequencies = Counter(atom_occurences)
+    assert(0 not in atom_frequencies.values())
+      # each atom must occur in at least one model
+    probabilities = [float(freq) / atom_frequencies.total() for freq in
+                     atom_frequencies.values()]
+    entropy = sum([-prob*log2(prob) for prob in probabilities])
+    return entropy
+
+
+def representativeness(atoms, models):
+    # computes how evenly the atoms are distributed among the models
+    # value lies in (0,1]
+    entropy = shannon_entropy(atoms, models)
+    return 2**(entropy-log2(len(atoms)))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -272,13 +295,15 @@ def main():
 #          # TODO is this rule really useful? it gets subsumed by the rules
 #          # added in each iteration
         model_number = 0
-        while target_atoms:
+        to_cover = target_atoms.copy()
+        models = []
+        while to_cover:
             model_number += 1
             if args.num_instances > 0 and model_number > args.num_instances:
                 # compute all possible instances if args.num_instances == 0,
                 # otherwise compute at most args.num_instances instances
                 break
-            current_target = target_atoms[0]
+            current_target = to_cover[0]
             # TODO choose current target atom according to more sophisticated
             # strategy than just using the first one?
 #            ctl = Control([f"{args.num_instances}"])
@@ -293,6 +318,10 @@ def main():
                     model = solve_handle.model()
                     # TODO choose model according to more sophisticated
                     # strategy than just using first one?
+                    models.append(model.symbols(atoms=True))
+                      # Model objects should not be accessed outside the
+                      # with-block, so we store the atoms (of type Symbol)
+                      # instead
                     if args.print_asp_model:
                         print(f"ASP model of instance number {model_number}:")
                         print(model)
@@ -306,10 +335,10 @@ def main():
                     else:
                         print(instance)
                         print()
-                    target_atoms = [atom for atom in target_atoms if atom not
-                                    in model.symbols(atoms=True)]
+                    to_cover = [atom for atom in to_cover if atom not in
+                                model.symbols(atoms=True)]
                       # all target atoms occuring in the current ASP model are
-                      # covered and thus are removed from target_atoms
+                      # covered and thus are removed from to_cover
                 else:
                     # this should not be able to happen since there must be a
                     # solution for each facet-inducing atom (which are the
@@ -317,6 +346,7 @@ def main():
                     print(f"Could not compute ASP model for current target atom '{str(current_target)}', reason: {solve_handle.get()}")
                     sys.exit(1)
         print("Finished generating representative instances.")
+        print(f"The representativeness score of the set of generated instances is {representativeness(target_atoms, models)}.")
 ######## old way to compute representative instances using fasb's mode soe as a
 ######## black box
 #        if not shutil.which("fasb"):
