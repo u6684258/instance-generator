@@ -3,7 +3,7 @@
 import copy
 from typing import Sequence
 
-import pddl
+from instance_generator import pddl
 
 class ConditionProxy:
     def clone_owner(self):

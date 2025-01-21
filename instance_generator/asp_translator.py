@@ -3,11 +3,11 @@ import sys
 from collections import defaultdict
 from itertools import combinations
 
-import pddl
+from instance_generator import pddl
 
-from pddl import Predicate
-from pddl import Type
-from pddl import TypedObject
+from instance_generator.pddl import Predicate
+from instance_generator.pddl import Type
+from instance_generator.pddl import TypedObject
 
 
 def replace_special_symbols(string: str):

@@ -16,10 +16,10 @@ from collections import defaultdict
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
-import asp_translator
-import normalize
-import pddl
-import pddl_parser
+from instance_generator import asp_translator
+from instance_generator import normalize
+from instance_generator import pddl
+from instance_generator import pddl_parser
 
 
 def load_and_validate_extended_input(extended_input_file_path: str):

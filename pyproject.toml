@@ -1,0 +1,11 @@
+[project]
+name = "instance_generator"
+version = "0.0.1"
+dependencies = [
+    "clingo",
+    "pydantic",
+]
+
+[tool.setuptools.packages.find]
+include = ["instance_generator"]  # ["*"] by default
+
