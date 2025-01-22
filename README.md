@@ -9,7 +9,7 @@ International Conference on Automated Planning and Scheduling (ICAPS 2024), pp.
 ## Usage
 
 - `-h` or `--help` to see all options of the program
-- Basic usage: `./instance_generation.py <domain-file> -n <universe-size>`
+- Basic usage: `python3 -m instance_generator <domain-file> -n <universe-size>`
   generates a single instance where
   - `<domain-file>` is the path to the PDDL domain file for which an instance
     will be generated, and
@@ -33,7 +33,8 @@ enabled the instance generator will not be able to use fasb).
 
 After building or installing fasb add the executable to PATH.
 
-**TODO** mention that fasb also uses clingo internally? mention soe (paper)?
+**TODO** update to new version where soe's S-Greedy is reimplemented in
+instance generator
 
 
 ## Format of Extended-Input File

@@ -1,4 +1,4 @@
-from instance_generator import instance_generation
+from .instance_generator import main
 
-instance_generation.main()
+main()
 

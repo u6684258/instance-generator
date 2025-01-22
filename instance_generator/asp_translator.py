@@ -1,13 +1,8 @@
-import sys
-
 from collections import defaultdict
 from itertools import combinations
+import sys
 
-from instance_generator import pddl
-
-from instance_generator.pddl import Predicate
-from instance_generator.pddl import Type
-from instance_generator.pddl import TypedObject
+from . import pddl
 
 
 def replace_special_symbols(string: str):
@@ -146,7 +141,7 @@ class ASPGenerator:
             return types[0]
         else:
             # all objects have the generic PDDL type "object"
-            return Type("object")
+            return pddl.Type("object")
 
 
     def _get_objects(self, typed_universe: dict):
@@ -155,7 +150,8 @@ class ASPGenerator:
         task_specific_objects = []
         for t,n in typed_universe.items():
             for i in range(n):
-                task_specific_objects.append(TypedObject(str(object_number), t))
+                task_specific_objects.append(
+                        pddl.TypedObject(str(object_number), t))
                 object_number = object_number + 1
         return domain_wide_objects + task_specific_objects
 

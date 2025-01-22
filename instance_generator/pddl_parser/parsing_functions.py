@@ -1,8 +1,8 @@
 import contextlib
 import sys
 
-from instance_generator import graph
-from instance_generator import pddl
+from . import graph
+from .. import pddl
 from .parse_error import ParseError
 
 TYPED_LIST_SEPARATOR = "-"

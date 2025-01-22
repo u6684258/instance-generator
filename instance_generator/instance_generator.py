@@ -1,26 +1,24 @@
 #! /usr/bin/env python3
 
 import argparse
-import shutil
+from collections import Counter, defaultdict
+from math import log2
+#import shutil
 import subprocess
 import sys
 import tempfile
 import time
-
-from collections import Counter
-from math import log2
+from typing import Dict, List, Optional
 
 from clingo import Control
 from clingo.solving import Model
 from clingo.symbol import SymbolType
-from collections import defaultdict
 from pydantic import BaseModel
-from typing import Dict, List, Optional
 
-from instance_generator import asp_translator
-from instance_generator import normalize
-from instance_generator import pddl
-from instance_generator import pddl_parser
+from . import asp_translator
+from . import pddl
+from . import pddl_parser
+from .axiom_normalizer import normalize_axioms
 
 
 def load_and_validate_extended_input(extended_input_file_path: str):
@@ -194,7 +192,7 @@ def main():
 
     print("Normalizing axioms to Stratified Datalog")
     # TODO verify stratification?
-    normalize.normalize_axioms(domain)
+    normalize_axioms(domain)
     if args.print_normalized_domain:
         print("Normalized PDDL domain:")
         domain.dump()
