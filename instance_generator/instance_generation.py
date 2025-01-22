@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 from collections import Counter
 from math import log2
@@ -165,6 +166,7 @@ def representativeness(atoms, models):
 
 
 def main():
+    start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument(
             "domain",
@@ -415,6 +417,7 @@ def main():
                 print("The provided domain characterization is not satisfiable. No instance can be generated for it.")
             else:
                 print("Failed to find a model for the provided domain characterization. Satisfiability unknown.")
+    print(f"Program runtime: {time.time()-start_time} seconds")
 
 
 if __name__ == "__main__":
