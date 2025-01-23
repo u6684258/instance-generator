@@ -64,9 +64,50 @@ def load_and_validate_extended_input(extended_input_file_path: str):
     return extended_input
 
 
-def create_instance(asp_model, model_number: int, domain: pddl.Domain):
-    # builds the string of the PDDL instance that corresponds to the given ASP
-    # model
+# translation functions to get from ASP back to PDDL
+
+def translate_to_atom_name_and_arguments(atom, is_clingo_symbol: bool):
+    if is_clingo_symbol:
+        atom_name = atom.name.replace(*('_DASH_', '-'))
+        atom_arguments = atom.arguments
+    else:
+        if '(' in atom: # the atom has arguments
+            atom_name = atom[:atom.index('(')].replace(*('_DASH_', '-'))
+              # removes everything starting at '(' (i. e. the arguments and
+              # the brackets) and replaces '_DASH_' with '-' (undoing the
+              # replacement from the ASP translator)
+            atom_arguments = atom[atom.index('(')+1:-1].split(',')
+              # removes '(' and everything before and removes the last
+              # element (which is the closing bracket ')'), then splits the
+              # remaining part (i. e., the arguments) on ','
+        else: # the atom is nullary
+            atom_name = atom.replace(*('_DASH_', '-'))
+            atom_arguments = []
+    return atom_name, atom_arguments
+
+
+def translate_to_object_string(obj, is_clingo_symbol: bool):
+    if is_clingo_symbol:
+        return f"obj_{obj.number}" if obj.type is SymbolType.Number else \
+                str(obj).replace(*('_DASH_', '-'))
+    else:
+        return f"obj_{obj}" if obj.isdigit() else \
+                obj.replace(*('_DASH_', '-'))
+
+
+def translate_to_pddl_type(type_name: str, domain: pddl.Domain):
+    for t in domain.types:
+        if type_name == t.name.lower():
+            return t
+    assert(type_name == "object")
+    return pddl.Type("object")
+
+
+def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
+    # retrieve the PDDL objects (and their types) and the initial state atoms
+    # from the atoms of the ASP model
+    # extracting the objects and the initial state is combined into one
+    # function to avoid iterating twice through the atoms of the ASP model
     is_clingo_model = isinstance(asp_model, Model)
     if is_clingo_model:
         asp_atoms = [sym for sym in asp_model.symbols(shown=True)]
@@ -75,65 +116,38 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
           # the Fast Downward translator creates helper predicates whose
           # translation to ASP contains '_AT_' but in the models of the answer
           # set program those predicates should not occur
-    else: # from fasb we get the model as a string
+    else:
         assert(isinstance(asp_model, str))
+        assert('__AT__' not in asp_model)
         asp_atoms = asp_model.split()
 
-    # retrieve the PDDL objects (and their types) and the initial state atoms
-    # from the atoms of the ASP model
     objects = defaultdict(set)
+      # for gathering the objects and all PDDL types each object has according
+      # to the ASP model
     initial_state = []
     pddl_type_names = [t.name.lower() for t in domain.types]
     for atom in asp_atoms:
-        if is_clingo_model:
-            atom_name = atom.name.replace(*('_DASH_', '-'))
-            atom_arguments = atom.arguments
-        else:
-            if '(' in atom: # the atom has arguments
-                atom_name = atom[:atom.index('(')].replace(*('_DASH_', '-'))
-                  # removes everything starting at '(' (i. e. the arguments and
-                  # the brackets) and replaces '_DASH_' with '-' (undoing the
-                  # replacement from the ASP translator)
-                atom_arguments = atom[atom.index('(')+1:-1].split(',')
-                  # removes '(' and everything before and removes last element,
-                  # then splits the remaining part (i. e., the arguments) on ','
-            else: # the atom is nullary
-                atom_name = atom.replace(*('_DASH_', '-'))
-                atom_arguments = []
+        atom_name, atom_arguments = translate_to_atom_name_and_arguments(
+                atom, is_clingo_model)
         if atom_name in pddl_type_names:
             # if the atom describes the type of an object, add that object and
             # that type to the objects-dictionary
             assert(len(atom_arguments) == 1)
             argument = atom_arguments[0]
-            if is_clingo_model:
-                object_string = f"obj_{argument.number}" if \
-                        argument.type is SymbolType.Number else \
-                        str(argument).replace(*('_DASH_', '-'))
-            else:
-                object_string = f"obj_{argument}" if argument.isdigit() else \
-                        argument.replace(*('_DASH_', '-'))
-            object_type = pddl.Type("object")
-            for t in domain.types:
-                if atom_name == t.name.lower():
-                    object_type = t
-                    break
+            object_string = translate_to_object_string(argument, is_clingo_model)
+            object_type = translate_to_pddl_type(atom_name, domain)
             objects[object_string].add(object_type)
         else:
             # else the atom is a basic predicate and thus is added to the
             # initial state
             arguments = []
             for arg in atom_arguments:
-                if is_clingo_model:
-                    argument_string = f"obj_{arg.number}" if \
-                            arg.type is SymbolType.Number else \
-                            str(arg).replace(*('_DASH_', '-'))
-                else:
-                    argument_string = f"obj_{arg}" if argument.isdigit() else \
-                            argument.replace(*('_DASH_', '-'))
+                argument_string = translate_to_object_string(arg, is_clingo_model)
                 arguments.append(argument_string)
             initial_state.append(f"({atom_name} {' '.join(arguments)})")
 
     typed_objects = []
+    # attach the type to each object that is not a base type of the object
     for obj, types in objects.items():
         base_type_names = [t.basetype_name.lower() for t in types if
                             t.basetype_name is not None]
@@ -143,15 +157,24 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
           # an object can have only one type that is not a base type
         object_type = non_base_types[0]
         typed_objects.append(f"{obj} - {object_type.name.lower()}")
+    return typed_objects, initial_state
+
+
+def create_instance(asp_model, model_number: int, domain: pddl.Domain):
+    # builds the string of the PDDL instance that corresponds to the given ASP
+    # model
+    instance_parts = []
+
+    objects, initial_state = extract_objects_and_initial_state(
+            asp_model, domain)
+
+    objects_string = "(:objects\n  " + '\n  '.join(objects) + "\n)"
+    instance_parts.append(objects_string)
 
     assert(len(domain.functions) <= 1)
       # the instance generator does not handle functions except for action
       # costs
     has_action_costs = len(domain.functions) == 1
-    instance_parts = []
-
-    objects_string = "(:objects\n  " + '\n  '.join(typed_objects) + "\n)"
-    instance_parts.append(objects_string)
 
     if has_action_costs:
         initial_state.insert(0, "(= (total-cost) 0)")
