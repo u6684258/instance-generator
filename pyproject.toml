@@ -6,6 +6,3 @@ dependencies = [
     "pydantic",
 ]
 
-[tool.setuptools.packages.find]
-include = ["instance_generator"]  # ["*"] by default
-
