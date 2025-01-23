@@ -21,6 +21,31 @@ from . import pddl_parser
 from .axiom_normalizer import normalize_axioms
 
 
+def get_command_line_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+            "domain",
+            help="PDDL domain file for which instances will be generated")
+    arg_group = parser.add_mutually_exclusive_group(required=True)
+    arg_group.add_argument("-n","--num_objects", type=int,
+                        help="number of objects the instances will have")
+    arg_group.add_argument("-e", "--extended_input",
+                           help="JSON file specifying how many objects of which types the instances will have, and potentially constraints on how many atoms of a certain predicate there will be")
+    parser.add_argument("num_instances", nargs='?', type=int, default=1,
+                        help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
+    parser.add_argument("--representative", action="store_true",
+                        help="generate a set of instances that is representative for the given domain")
+    parser.add_argument("-o", "--output_file_prefix",
+                        help="write generated instances to files whose names begin with the given prefix")
+    parser.add_argument("--print_normalized_domain", action="store_true",
+                        help="print the normalized PDDL domain")
+    parser.add_argument("--print_translated_domain", action="store_true",
+                        help="print the ASP program that the input PDDL domain is translated to")
+    parser.add_argument("--print_asp_model", action="store_true",
+                        help="print the model of the ASP program that corresponds to the input PDDL domain")
+    return parser.parse_args()
+
+
 def load_and_validate_extended_input(extended_input_file_path: str):
     # loads the extended input file (JSON) and checks if it has the correct
     # format (the basic format is defined by the ExtendedInput class)
@@ -165,28 +190,7 @@ def representativeness(atoms, models):
 
 def main():
     start_time = time.time()
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-            "domain",
-            help="PDDL domain file for which instances will be generated")
-    arg_group = parser.add_mutually_exclusive_group(required=True)
-    arg_group.add_argument("-n","--num_objects", type=int,
-                        help="number of objects the instances will have")
-    arg_group.add_argument("-e", "--extended_input",
-                           help="JSON file specifying how many objects of which types the instances will have, and potentially constraints on how many atoms of a certain predicate there will be")
-    parser.add_argument("num_instances", nargs='?', type=int, default=1,
-                        help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
-    parser.add_argument("--representative", action="store_true",
-                        help="generate a set of instances that is representative for the given domain")
-    parser.add_argument("-o", "--output_file_prefix",
-                        help="write generated instances to files whose names begin with the given prefix")
-    parser.add_argument("--print_normalized_domain", action="store_true",
-                        help="print the normalized PDDL domain")
-    parser.add_argument("--print_translated_domain", action="store_true",
-                        help="print the ASP program that the input PDDL domain is translated to")
-    parser.add_argument("--print_asp_model", action="store_true",
-                        help="print the model of the ASP program that corresponds to the input PDDL domain")
-    args = parser.parse_args()
+    args = get_command_line_arguments()
 
     domain = pddl_parser.open(args.domain)
 
