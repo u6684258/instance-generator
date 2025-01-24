@@ -22,19 +22,22 @@ International Conference on Automated Planning and Scheduling (ICAPS 2024), pp.
 
 ## Representative Instances
 
-To generate a set of representative instances for a given domain (option
-`--representative`) the [fasb system](https://github.com/drwadu/fasb) with
-interpreter mode enabled must be on the PATH.
+With the `--representative` option, the instance generator will generate up to
+`num_instances` *representative* instances for a domain. The number of
+representative instances is usually much smaller than the total number of
+instances of a domain, so we recommend to set `num_instances` to `0` (i. e.,
+all possible instances will be generated) in this case.
 
-To build or install fasb follow the instructions at
-<https://github.com/drwadu/fasb> and make sure to add the option
-`--features interpreter` when building / installing fasb (if this mode is not
-enabled the instance generator will not be able to use fasb).
+After generating representative instances, the instance generator will also
+output a *representative value* of the generated set of instances. This value
+lies in the interval (0, 1] and a high value roughly means that the generated
+set of instances represents the given domain well.
 
-After building or installing fasb add the executable to PATH.
+**TODO** add detailed explanation including formula? if not, refer to
+explanations and formula of Böhl et al., 2023
 
-**TODO** update to new version where soe's S-Greedy is reimplemented in
-instance generator
+The implementation to generate representative instances is based on the work of
+Böhl et al., 2023[^boehl-et-al-ecai2023].
 
 
 ## Format of Extended-Input File
@@ -121,4 +124,12 @@ of parameters in axiom heads:
 **TODO** add links?
 - clingo
 - pydantic
+
+
+## References
+
+[^boehl-et-al-ecai2023] Elisa Böhl, Sarah Gaggl, Dominik Rusovac,
+Representative Answer Sets: Collecting Something of Everything, In Proceedings
+of ECAI 2023, pp. 271 - 278
+
 

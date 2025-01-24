@@ -3,7 +3,6 @@
 import argparse
 from collections import Counter, defaultdict
 from math import log2
-#import shutil
 import subprocess
 import sys
 import tempfile
@@ -374,48 +373,6 @@ def main():
                     sys.exit(1)
         print(f"Finished generating {model_number} representative instances.")
         print(f"The representativeness score of the set of generated instances is {representativeness(target_atoms, models)}.")
-######## old way to compute representative instances using fasb's mode soe as a
-######## black box
-#        if not shutil.which("fasb"):
-#            print("Executable of fasb not found on PATH. For option --representative fasb must be on PATH.")
-#            sys.exit(1)
-#        with tempfile.NamedTemporaryFile(mode="w+t") as translated_domain_file:
-#            with tempfile.NamedTemporaryFile(mode="w+t") as script_file:
-#                # write the translated domain to a temporary file in
-#                # preparation of calling fasb
-#                translated_domain_file.write(translated_domain)
-#                translated_domain_file.flush()
-#                # write the script for the fasb call (the script contains a
-#                # single line, calling mode soe)
-#                script_file.write(":soe")
-#                script_file.flush()
-#                print("Calling fasb")
-#                fasb_output = subprocess.run([shutil.which("fasb"), translated_domain_file.name, f"{args.num_instances}", script_file.name], capture_output=True, text=True)
-#        if fasb_output.returncode != 0:
-#            print("fasb exited with the following error message:")
-#            print(fasb_output.stderr)
-#            sys.exit(1)
-#        # extract the models from the output of fasb (skip the first four lines
-#        # and then every second line)
-#        models = fasb_output.stdout.splitlines()[4::2]
-#        model_number = 0
-#        for model in models:
-#            model_number += 1
-#            if args.print_asp_model:
-#                print(f"ASP model of instance number {model_number}:")
-#                print(model)
-#            print(f"Creating instance number {model_number} from ASP model")
-#            instance = create_instance(model, model_number, domain)
-#            if args.output_file_prefix:
-#                with open(f"{args.output_file_prefix}{model_number}.pddl",
-#                          "w") as f:
-#                    f.write(instance)
-#                    f.write("\n\n")
-#            else:
-#                print(instance)
-#                print()
-#        print("Finished generating representative instances.")
-########
     else:
         print("Calling ASP solver clingo")
         ctl = Control([f"{args.num_instances}"])
