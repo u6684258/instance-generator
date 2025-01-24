@@ -2,6 +2,7 @@
 
 import argparse
 from collections import Counter, defaultdict
+from enum import Enum
 from math import log2
 import subprocess
 import sys
@@ -10,8 +11,7 @@ import time
 from typing import Dict, List, Optional
 
 from clingo import Control
-from clingo.solving import Model
-from clingo.symbol import SymbolType
+from clingo.symbol import Symbol, SymbolType
 from pydantic import BaseModel
 
 from . import asp_translator
@@ -58,7 +58,7 @@ def load_and_validate_extended_input(extended_input_file_path: str):
     for predicate_name, interval in \
             extended_input["cardinality_constraints"].items():
         if len(interval) != 2:
-            print(f"Error: The list given as interval in the cardinality constraints for {predicate_name} has length {len(interval)} but must have length 2.")
+            print(f"The list given as interval in the cardinality constraints for {predicate_name} has length {len(interval)} but must have length 2.")
             sys.exit(1)
     return extended_input
 
@@ -107,9 +107,9 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
     # from the atoms of the ASP model
     # extracting the objects and the initial state is combined into one
     # function to avoid iterating twice through the atoms of the ASP model
-    is_clingo_model = isinstance(asp_model, Model)
+    is_clingo_model = all(isinstance(atom, Symbol) for atom in asp_model)
     if is_clingo_model:
-        asp_atoms = [sym for sym in asp_model.symbols(shown=True)]
+        asp_atoms = [sym for sym in asp_model]
         assert(all(sym.type is SymbolType.Function for sym in asp_atoms))
         assert(all('_AT_' not in atom.name for atom in asp_atoms))
           # the Fast Downward translator creates helper predicates whose
@@ -190,6 +190,36 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
     return instance
 
 
+class ConsequencesType(Enum):
+    BRAVE = 1
+    CAUTIOUS = 2
+
+
+def get_consequences(ctl: Control, consequences_type: ConsequencesType):
+    # computes the brave or cautious consequences of the grounded answer set
+    # program used in ctl
+    # - brave consequences are atoms that appear in at least one answer set of
+    #   an answer set program (i. e., atoms that will appear in at least one
+    #   instance of a domain)
+    # - cautious consequences are atoms that appear in every answer set of an
+    #   answer set program (i. e., atoms that will appear in every instance of
+    #   a domain)
+    solve_mode_backup = ctl.configuration.solve.enum_mode
+    ctl.configuration.solve.enum_mode = consequences_type.name.lower()
+    with ctl.solve(yield_ = True) as solve_handle:
+        consequences = []
+          # overwrite this in every loop because only last computed model
+          # contains the actual consequences
+        for model in solve_handle:
+            consequences = model.symbols(shown=True)
+            # TODO use atoms here instead of shown? soe uses shown
+        if not solve_handle.get().satisfiable:
+            print(f"Clingo could not compute {consequences_type.name().lower()} consequences, reason: {solve_handle.get()}")
+            sys.exit(1)
+    ctl.configuration.solve.enum_mode = solve_mode_backup
+    return consequences
+
+
 def shannon_entropy(atoms, models):
     # Shannon entropy of the atoms over the models
     # https://stackoverflow.com/questions/15450192/fastest-way-to-compute-entropy-in-python
@@ -240,56 +270,26 @@ def main():
         print()
 
     if args.num_instances < 0:
-        print("Error: num_instances must be a non-negative number.")
+        print(f"num_instances must be a non-negative number but is {args.num_instances}.")
         sys.exit(1)
 
+    models = []
     if args.representative:
-        print("Calling ASP solver clingo")
-#        ctl = Control([f"{args.num_instances}"])
+        print("Setting up ASP solver clingo")
         ctl = Control(["0"])
           # "0", i. e. "all models", because for cautious / brave consequences
           # clingo should consider all models
         ctl.add(translated_domain)
         ctl.ground()
 
-        print("Calling clingo to compute cautious consequences")
-        # cautious consequences are atoms that appear in every answer set of an
-        # answer set program (i. e., atoms that will appear in every instance
-        # of a domain)
-        ctl.configuration.solve.enum_mode = "cautious"
-        with ctl.solve(yield_ = True) as solve_handle:
-            if not solve_handle.get().satisfiable:
-                print(f"Clingo could not compute cautious consequences, reason: {solve_handle.get()}")
-                sys.exit(1)
-            cautious_consequences = []
-              # overwrite this in every loop because only last computed model
-              # contains the actual cautious consequences
-            for model in solve_handle:
-                cautious_consequences = model.symbols(shown=True)
-                # TODO use atoms here (and analogously below) instead of shown?
-                # soe uses shown
-
         print("Calling clingo to compute brave consequences")
-        # brave consequences are atoms that appear in at least one answer set
-        # of an answer set program (i. e., atoms that will appear in at least
-        # one instance of a domain)
-#        ctl = Control([f"{args.num_instances}"])
-#        ctl.add(translated_domain)
-#        ctl.ground()
-        ctl.configuration.solve.enum_mode = "brave"
-        with ctl.solve(yield_ = True) as solve_handle:
-            if not solve_handle.get().satisfiable:
-                print(f"Clingo could not compute brave consequences, reason: {solve_handle.get()}")
-                sys.exit(1)
-            brave_consequences = []
-              # overwrite this in every loop because only last computed model
-              # contains the actual brave consequences
-            for model in solve_handle:
-                brave_consequences = model.symbols(shown=True)
+        brave_consequences = get_consequences(ctl, ConsequencesType.BRAVE)
 
-        # compute representative instances
-        ctl.configuration.solve.enum_mode = "auto"
-          # auto is the default value to compute answer sets
+        print("Calling clingo to compute cautious consequences")
+        cautious_consequences = get_consequences(ctl,
+                                                 ConsequencesType.CAUTIOUS)
+
+        # representativeness is determined in terms of a set of target atoms
         target_atoms = [atom for atom in brave_consequences if atom not in
                         cautious_consequences]
           # we choose the facet inducing atoms as target atoms, i. e., the
@@ -297,108 +297,93 @@ def main():
         if not target_atoms:
               # brave_consequences == cautious_consequences, i. e., there is
               # exactly one answer set
-            print("No facet inducing atoms, i. e., the domain characterization admits exactly one instance.")
-#            ctl = Control([f"{args.num_instances}"])
-#            ctl.add(translated_domain)
-#            ctl.ground()
+            print("No facet-inducing atoms were found, thus the domain characterization admits exactly one instance.")
+            print("Calling clingo to compute the only ASP model")
             with ctl.solve(yield_ = True) as solve_handle:
-                if args.print_asp_model:
-                    print(f"ASP model of instance:")
-                    print(solve_handle.model())
-                print(f"Creating instance from ASP model")
-                instance = create_instance(solve_handle.model(), 1, domain)
-                if args.output_file_prefix:
-                    with open(f"{args.output_file_prefix}{model.number}.pddl",
-                              "w") as f:
-                        f.write(instance)
-                        f.write("\n\n")
-                else:
-                    print(instance)
-            sys.exit(0)
-#        sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
-#          # :- not a1, not a2, not a3, ..., not an.
-#          # ensures that each answer set includes at least one target atom
-#          # TODO is this rule really useful? it gets subsumed by the rules
-#          # added in each iteration
-        model_number = 0
-        to_cover = target_atoms.copy()
-        models = []
-        while to_cover:
-            model_number += 1
-            if args.num_instances > 0 and model_number > args.num_instances:
-                # compute all possible instances if args.num_instances == 0,
-                # otherwise compute at most args.num_instances instances
-                break
-            current_target = to_cover[0]
-            # TODO choose current target atom according to more sophisticated
-            # strategy than just using the first one?
-#            ctl = Control([f"{args.num_instances}"])
-#              # uses default "auto" for ctl.configuration.solve.enum_mode
-#            ctl.add(translated_domain)
-##            ctl.add(sieve_rule)
-##            ctl.add(f":- not {current_target}.")
-#            ctl.ground()
-            with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
-                    as solve_handle:
-                if solve_handle.get().satisfiable:
+                models = [solve_handle.model().symbols(shown=True)]
+                if not solve_handle.get().satisfiable:
+                    print(f"Clingo could not compute the ASP model, reason: {solve_handle.get()}")
+                    sys.exit(1)
+        else:
+            print("Calling clingo to compute representative ASP models")
+#            sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
+#              # :- not a1, not a2, not a3, ..., not an.
+#              # ensures that each answer set includes at least one target atom
+#              # TODO is this rule really useful? it gets subsumed by the rules
+#              # added in each iteration
+            full_models = []
+              # for gathering ASP models where no variables are ignored, the
+              # variable 'models' on the other hand holds the ASP models where
+              # only atoms relevant for instance generation are included
+            model_number = 0
+            to_cover = target_atoms.copy()
+            while to_cover:
+                model_number += 1
+                if args.num_instances > 0 and model_number > args.num_instances:
+                    break
+                    # compute all possible ASP models if args.num_instances ==
+                    # 0, otherwise compute at most args.num_instances ASP
+                    # models
+                current_target = to_cover[0]
+                # TODO choose current target atom according to more sophisticated
+                # strategy than just using the first one?
+#                ctl = Control([f"{args.num_instances}"])
+#                ctl.add(translated_domain)
+##                ctl.add(sieve_rule)
+##                ctl.add(f":- not {current_target}.")
+#                ctl.ground()
+                with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
+                        as solve_handle:
                     model = solve_handle.model()
                     # TODO choose model according to more sophisticated
                     # strategy than just using first one?
-                    models.append(model.symbols(atoms=True))
-                      # Model objects should not be accessed outside the
-                      # with-block, so we store the atoms (of type Symbol)
-                      # instead
-                    if args.print_asp_model:
-                        print(f"ASP model of instance number {model_number}:")
-                        print(model)
-                    print(f"Creating instance number {model_number} from ASP model")
-                    instance = create_instance(model, model_number, domain)
-                    if args.output_file_prefix:
-                        with open(f"{args.output_file_prefix}{model_number}.pddl",
-                                  "w") as f:
-                            f.write(instance)
-                            f.write("\n\n")
-                    else:
-                        print(instance)
-                        print()
+                    assert(solve_handle.get().satisfiable)
+                      # by definition of facet-inducing atoms, at least one ASP
+                      # model must exist for each facet-inducing atom (which
+                      # are the target atoms)
+                    models.append(model.symbols(shown=True))
+                    full_models.append(model.symbols(atoms=True))
                     to_cover = [atom for atom in to_cover if atom not in
                                 model.symbols(atoms=True)]
                       # all target atoms occuring in the current ASP model are
                       # covered and thus are removed from to_cover
-                else:
-                    # this should not be able to happen since there must be a
-                    # solution for each facet-inducing atom (which are the
-                    # target atoms)
-                    print(f"Could not compute ASP model for current target atom '{str(current_target)}', reason: {solve_handle.get()}")
-                    sys.exit(1)
-        print(f"Finished generating {model_number} representative instances.")
-        print(f"The representativeness score of the set of generated instances is {representativeness(target_atoms, models)}.")
+            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}.")
     else:
-        print("Calling ASP solver clingo")
+        print("Setting up ASP solver clingo")
         ctl = Control([f"{args.num_instances}"])
         ctl.add(translated_domain)
         ctl.ground()
+        if args.num_instances > 0:
+            print(f"Calling clingo to compute up to {args.num_instances} ASP models")
+        else:
+            print(f"Calling clingo to compute all possible ASP models")
         with ctl.solve(yield_ = True) as solve_handle:
             for model in solve_handle:
-                if args.print_asp_model:
-                    print(f"ASP model of instance number {model.number}:")
-                    print(model)
-                print(f"Creating instance number {model.number} from ASP model")
-                instance = create_instance(model, model.number, domain)
-                if args.output_file_prefix:
-                    with open(f"{args.output_file_prefix}{model.number}.pddl",
-                              "w") as f:
-                        f.write(instance)
-                        f.write("\n\n")
-                else:
-                    print(instance)
-                    print()
-            if solve_handle.get().satisfiable:
-                print("Finished generating instances.")
-            elif solve_handle.get().unsatisfiable:
-                print("The provided domain characterization is not satisfiable. No instance can be generated for it.")
-            else:
-                print("Failed to find a model for the provided domain characterization. Satisfiability unknown.")
+                models.append(model.symbols(shown=True))
+            if not solve_handle.get().satisfiable:
+                print(f"Clingo could not compute the ASP models, reason: {solve_handle.get()}")
+                sys.exit(1)
+
+    # create the instances from the ASP models and generate the output
+    # according to args
+    print("Generating the instances from the ASP models")
+    instance_number = 0
+    for model in models:
+        instance_number += 1
+        if args.print_asp_model:
+            print(f"ASP model of instance number {instance_number}:")
+            print(model)
+        instance = create_instance(model, instance_number, domain)
+        if args.output_file_prefix:
+            with open(f"{args.output_file_prefix}{instance_number}.pddl",
+                      "w") as f:
+                f.write(instance)
+                f.write("\n\n")
+        else:
+            print(f"Instance number {instance_number}:")
+            print(instance)
+            print()
+    print("Finished generating instances")
     print(f"Program runtime: {time.time()-start_time} seconds")
 
 
