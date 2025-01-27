@@ -347,7 +347,7 @@ def main():
                                 model.symbols(atoms=True)]
                       # all target atoms occuring in the current ASP model are
                       # covered and thus are removed from to_cover
-            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}.")
+            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}")
     else:
         print("Setting up ASP solver clingo")
         ctl = Control([f"{args.num_instances}"])
