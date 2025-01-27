@@ -204,6 +204,10 @@ def get_consequences(ctl: Control, consequences_type: ConsequencesType):
     # - cautious consequences are atoms that appear in every answer set of an
     #   answer set program (i. e., atoms that will appear in every instance of
     #   a domain)
+    num_models_backup = ctl.configuration.solve.models
+    ctl.configuration.solve.models = 0
+      # according to clingo's documentation to compute brave or cautious
+      # consequences clingo must be allowed to compute all models
     solve_mode_backup = ctl.configuration.solve.enum_mode
     ctl.configuration.solve.enum_mode = consequences_type.name.lower()
     with ctl.solve(yield_ = True) as solve_handle:
@@ -216,6 +220,7 @@ def get_consequences(ctl: Control, consequences_type: ConsequencesType):
         if not solve_handle.get().satisfiable:
             print(f"Clingo could not compute {consequences_type.name().lower()} consequences, reason: {solve_handle.get()}")
             sys.exit(1)
+    ctl.configuration.solve.models = num_models_backup
     ctl.configuration.solve.enum_mode = solve_mode_backup
     return consequences
 
