@@ -109,8 +109,8 @@ def translate_to_asp_variable(pddl_variable: str):
     return asp_variable
 
 
-# transforms objects and variables
 def translate_to_asp_term(pddl_term: str):
+    # transforms objects and variables
     if pddl_term[0] == "?":
         return translate_to_asp_variable(pddl_term)
     else:
@@ -331,7 +331,6 @@ class ASPGenerator:
     def generate_show_statements(self):
         statements = []
         for t in self.domain.types:
-#            if t.name != self.generic_type.name:
             predicate_name = translate_to_asp_predicate(t.name)
             statements.append(f"#show {predicate_name}/1.")
 
@@ -340,17 +339,6 @@ class ASPGenerator:
             arity = pred.get_arity()
             statements.append(f"#show {predicate_name}/{arity}.")
         return statements
-
-
-def _translate(asp_generator: ASPGenerator):
-    translated_parts = []
-    translated_parts += asp_generator.generate_type_facts()
-    translated_parts += asp_generator.generate_choice_predicates_rule()
-    translated_parts += asp_generator.generate_axioms()
-    translated_parts += asp_generator.generate_show_statements()
-
-    translated_domain = '\n'.join(translated_parts)
-    return translated_domain
 
 
 def translate(domain: pddl.Domain, universe: dict,
@@ -365,5 +353,12 @@ def translate(domain: pddl.Domain, universe: dict,
             sys.exit(1)
 
     asp_generator = ASPGenerator(domain, universe, cardinality_constraints)
-    return _translate(asp_generator)
+    translated_parts = []
+    translated_parts += asp_generator.generate_type_facts()
+    translated_parts += asp_generator.generate_choice_predicates_rule()
+    translated_parts += asp_generator.generate_axioms()
+    translated_parts += asp_generator.generate_show_statements()
+
+    translated_domain = '\n'.join(translated_parts)
+    return translated_domain
 
