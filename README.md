@@ -34,7 +34,9 @@ lies in the interval (0, 1] and a high value roughly means that the generated
 set of instances represents the given domain well.
 
 **TODO** add detailed explanation including formula? if not, refer to
-explanations and formula of Böhl et al., 2023
+explanations and formula of Böhl et al., 2023; if yes, explain that we choose
+all "shown" facet-inducing atoms as target atoms (i. e., atoms of basic
+predicates and of PDDL types)
 
 The implementation to generate representative instances is based on the work of
 Böhl et al., 2023[^boehl-et-al-ecai2023].
