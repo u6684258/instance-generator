@@ -218,7 +218,7 @@ def get_consequences(ctl: Control, consequences_type: ConsequencesType):
             consequences = model.symbols(shown=True)
             # TODO use atoms here instead of shown? soe uses shown
         if not solve_handle.get().satisfiable:
-            print(f"Clingo could not compute {consequences_type.name().lower()} consequences, reason: {solve_handle.get()}")
+            print(f"Clingo could not compute {consequences_type.name.lower()} consequences, reason: {solve_handle.get()}")
             sys.exit(1)
     ctl.configuration.solve.models = num_models_backup
     ctl.configuration.solve.enum_mode = solve_mode_backup
@@ -396,7 +396,7 @@ def main():
             print(f"Instance number {instance_number}:")
             print(instance)
             print()
-    print("Finished generating instances")
+    print(f"Finished generating {instance_number} instances")
     print(f"Program runtime: {time.time()-start_time} seconds")
 
 
