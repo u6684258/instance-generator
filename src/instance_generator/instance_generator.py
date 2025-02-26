@@ -41,7 +41,7 @@ def get_command_line_arguments():
     parser.add_argument("--print_translated_domain", action="store_true",
                         help="print the ASP program that the input PDDL domain is translated to")
     parser.add_argument("--print_asp_model", action="store_true",
-                        help="print the model of the ASP program that corresponds to the input PDDL domain")
+                        help="for each generated instance print the ASP model it is based on (including derived predicates and helper predicates from the Fast Downward translator)")
     return parser.parse_args()
 
 
@@ -279,11 +279,15 @@ def main():
         sys.exit(1)
 
     models = []
+    full_models = []
+      # for gathering ASP models where no variables are ignored, the
+      # variable 'models' on the other hand holds the ASP models where
+      # only atoms relevant for instance generation are included
     if args.representative:
         print("Setting up ASP solver clingo")
         ctl = Control(["0"])
           # "0", i. e. "all models", because for cautious / brave consequences
-          # clingo should consider all models
+          # clingo needs to consider all models
         ctl.add(translated_domain)
         ctl.ground()
 
@@ -305,7 +309,10 @@ def main():
             print("No facet-inducing atoms were found, thus the domain characterization admits exactly one instance.")
             print("Calling clingo to compute the only ASP model")
             with ctl.solve(yield_ = True) as solve_handle:
-                models = [solve_handle.model().symbols(shown=True)]
+                model = solve_handle.model()
+                models = [model.symbols(shown=True)]
+                if args.print_asp_model:
+                    full_models = [model.symbols(atoms=True)]
                 if not solve_handle.get().satisfiable:
                     print(f"Clingo could not compute the ASP model, reason: {solve_handle.get()}")
                     sys.exit(1)
@@ -316,10 +323,6 @@ def main():
 #              # ensures that each answer set includes at least one target atom
 #              # TODO is this rule really useful? it gets subsumed by the rules
 #              # added in each iteration
-            full_models = []
-              # for gathering ASP models where no variables are ignored, the
-              # variable 'models' on the other hand holds the ASP models where
-              # only atoms relevant for instance generation are included
             model_number = 0
             to_cover = target_atoms.copy()
             while to_cover:
@@ -353,7 +356,7 @@ def main():
                       # all target atoms occuring in the current ASP model are
                       # covered and thus are removed from to_cover
             print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}")
-    else:
+    else: # args.representative == False
         print("Setting up ASP solver clingo")
         ctl = Control([f"{args.num_instances}"])
         ctl.add(translated_domain)
@@ -365,9 +368,14 @@ def main():
         with ctl.solve(yield_ = True) as solve_handle:
             for model in solve_handle:
                 models.append(model.symbols(shown=True))
+                if args.print_asp_model:
+                    full_models.append(model.symbols(atoms=True))
             if not solve_handle.get().satisfiable:
                 print(f"Clingo could not compute the ASP models, reason: {solve_handle.get()}")
                 sys.exit(1)
+
+    if args.print_asp_model:
+        assert(len(models) == len(full_models))
 
     # create the instances from the ASP models and generate the output
     # according to args
@@ -377,7 +385,7 @@ def main():
         instance_number += 1
         if args.print_asp_model:
             print(f"ASP model of instance number {instance_number}:")
-            print(model)
+            print(full_models[instance_number-1])
         instance = create_instance(model, instance_number, domain)
         if args.output_file_prefix:
             with open(f"{args.output_file_prefix}{instance_number}.pddl",
