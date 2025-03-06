@@ -51,10 +51,12 @@ JSON file with a key `universe` and, optionally, a key
 `cardinality_constraints`. The values for both keys are dictionaries that must
 be structured as follows:
 
-`universe`: The keys are types mentioned in the PDDL domain file (use PDDL's
-generic type "object" if the domain does not use types or if one wishes to not
-require a specific type). Their values are positive integers that specify how
-many objects of the corresponding types the generated instances will have.
+`universe`: The keys are types mentioned in the PDDL domain file. Their values
+are positive integers that specify how many objects of the corresponding types
+the generated instances must have.  
+One can use PDDL's generic type "object" if the domain does not use types or if
+one wishes to not require a specific type for some or all objects (i. e., if
+the ASP solver should choose the types). 
 
 `cardinality_constraints`: The keys are names of basic predicates mentioned in
 the PDDL domain file. The values are lists where each list contains two

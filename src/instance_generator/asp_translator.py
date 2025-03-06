@@ -170,9 +170,9 @@ class ASPGenerator:
         return basic_predicates
 
     def check_cardinality_constraints(self, cardinality_constraints: dict):
-        # check if each key of the given dictionary is a name of a predicate in
+        # checks if each key of the given dictionary is a name of a predicate in
         # self.basic_predicates
-        # check if the lower and upper bounds given in the items of the
+        # checks if the lower and upper bounds given in the items of the
         # dictionary are valid cardinalities
         predicate_names = [p.name for p in self.basic_predicates]
         for predicate_name, interval in cardinality_constraints.items():
@@ -192,9 +192,9 @@ class ASPGenerator:
 
 
     def generate_type_facts(self):
-        # generates a fact for each object specifying that it has the
-        # generic type; if it is a domain-wide object with a specific
-        # type, a fact for this type is added as well
+        # generates a fact for each object specifying that it has the generic
+        # type; if it is an object with a specific type, a fact for this type
+        # is added as well
         facts = []
         for obj in self.objects:
             object_name = translate_to_asp_object(obj.name)
