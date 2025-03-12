@@ -6,18 +6,60 @@ International Conference on Automated Planning and Scheduling (ICAPS 2024), pp.
 
 **TODO** explain basic pipeline and cite clingo
 
+
+## Setup
+
+After cloning the repository, the instance generator can be installed via
+[pip](https://pip.pypa.io/en/stable/installation/). If you want to change the
+code and immediately test it, consider installing the instance generator with
+the `-e` option of pip, or (install its dependencies manually and) call it
+directly from the src-folder (`cd src && python3 -m instance_generator -h`).
+
+### Recommended Steps
+
+Clone the repository:
+**TODO**
+```
+git clone ... instance-generator
+```
+
+Create a virtual environment and activate it (this is not necessary but keeps
+your system clean by capsulating the instance generator and its dependencies):
+```
+python3 -m venv --prompt instance-generator-venv .venv
+source .venv/bin/activate
+```
+(You can deactivate the virtual environment with `deactivate`.)
+
+Install the instance generator (and its dependencies):
+```
+pip install instance-generator
+```
+
+Call the help-message of the instance generator to test the installation:
+```
+python3 -m instance_generator -h
+```
+
+
 ## Usage
 
-- `-h` or `--help` to see all options of the program
-- Basic usage: `python3 -m instance_generator <domain-file> -n <universe-size>`
-  generates a single instance where
-  - `<domain-file>` is the path to the PDDL domain file for which an instance
-    will be generated, and
-  - `<universe-size>` is a positive integer that specifies how many objects the
-    generated instance will have.
-- **TODO** add example domain (blocksworld, or floortile because of types) and
-  example JSDON-file to repo, and explain how could for example call program
-  for them
+Use `-h` or `--help` to see all options of the program.
+
+Basic usage:
+```
+python3 -m instance_generator <domain-file> -n <universe-size>
+```
+This generates a single instance where
+
+- `<domain-file>` is the PDDL domain file for which an instance will be
+  generated, and
+- `<universe-size>` is a positive integer that specifies how many objects the
+  generated instance will have.
+
+**TODO** add example domain (blocksworld, or floortile because of types) and
+example JSDON-file to repo, and explain how could for example call program
+for them
 
 
 ## Representative Instances
