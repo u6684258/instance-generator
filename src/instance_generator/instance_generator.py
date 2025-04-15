@@ -245,6 +245,104 @@ def representativeness(atoms, models):
     return 2**(entropy-log2(len(atoms)))
 
 
+def get_asp_models(translated_domain, num_instances: int, representative: bool):
+    # returns a generator yielding tuples of the form (model, full_model) where
+    # full_model contains all atoms while model only contains those atoms that
+    # are relevant for creating an instance from it
+
+    if representative:
+        print("Setting up ASP solver clingo")
+        ctl = Control(["0"])
+          # "0", i. e. "all models", because for cautious / brave consequences
+          # clingo needs to consider all models
+        ctl.add(translated_domain)
+        ctl.ground()
+
+        print("Calling clingo to compute brave consequences")
+        brave_consequences = get_consequences(ctl, ConsequencesType.BRAVE)
+
+        print("Calling clingo to compute cautious consequences")
+        cautious_consequences = get_consequences(ctl,
+                                                 ConsequencesType.CAUTIOUS)
+
+        # representativeness is determined in terms of a set of target atoms
+        target_atoms = [atom for atom in brave_consequences if atom not in
+                        cautious_consequences]
+          # we choose the facet inducing atoms as target atoms, i. e., the
+          # atoms that appear in some answer set but not in all answer sets
+        if not target_atoms:
+              # brave_consequences == cautious_consequences, i. e., there is
+              # exactly one answer set
+            print("No facet-inducing atoms were found, thus the domain characterization admits exactly one instance.")
+            print("Calling clingo to compute the only ASP model")
+            with ctl.solve(yield_ = True) as solve_handle:
+                if not solve_handle.get().satisfiable:
+                    print(f"Clingo could not compute the ASP model, reason: {solve_handle.get()}")
+                    sys.exit(1)
+                model = solve_handle.model()
+                yield (model.symbols(shown=True), model.symbols(atoms=True))
+        else:
+            print("Calling clingo to compute representative ASP models")
+#            sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
+#              # :- not a1, not a2, not a3, ..., not an.
+#              # ensures that each answer set includes at least one target atom
+#              # TODO is this rule really useful? it gets subsumed by the rules
+#              # added in each iteration
+            current_model_number = 0
+            to_cover = target_atoms.copy()
+            while to_cover:
+                current_model_number += 1
+                if num_instances > 0 and current_model_number > num_instances:
+                    break
+                    # compute all possible ASP models if num_instances ==
+                    # 0, otherwise compute at most num_instances ASP
+                    # models
+                current_target = to_cover[0]
+                # TODO choose current target atom according to more sophisticated
+                # strategy than just using the first one?
+#                ctl = Control([f"{num_instances}"])
+#                ctl.add(translated_domain)
+##                ctl.add(sieve_rule)
+##                ctl.add(f":- not {current_target}.")
+#                ctl.ground()
+                with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
+                        as solve_handle:
+                    assert(solve_handle.get().satisfiable)
+                      # by definition of facet-inducing atoms, at least one ASP
+                      # model must exist for each facet-inducing atom (which
+                      # are the target atoms)
+                    model = solve_handle.model()
+                    # TODO choose model according to more sophisticated
+                    # strategy than just using first one?
+                    yield (model.symbols(shown=True), model.symbols(atoms=True))
+                    to_cover = [atom for atom in to_cover if atom not in
+                                model.symbols(atoms=True)]
+                      # all target atoms occuring in the current ASP model are
+                      # covered and thus are removed from to_cover
+            # TODO calculate representative score outside this method
+#            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}")
+    else: # representative == False
+        print("Setting up ASP solver clingo")
+        num_asp_models = num_instances if num_instances == 0 else num_instances + 1
+        ctl = Control([f"{num_asp_models}"])
+          # clingo seems to treat the argument as an *exclusive* upper bound
+          # on the number of asp models to compute, so we add 1 to
+          # num_instances (if it is not zero) such that clingo computes
+          # num_instances many instances (or less)
+        ctl.add(translated_domain)
+        ctl.ground()
+        if num_instances > 0:
+            print(f"Calling clingo to compute up to {num_instances} ASP models")
+        else:
+            print(f"Calling clingo to compute all possible ASP models")
+        with ctl.solve(yield_ = True) as solve_handle:
+            if not solve_handle.get().satisfiable:
+                print(f"Clingo could not compute the ASP models, reason: {solve_handle.get()}")
+                sys.exit(1)
+            for model in solve_handle:
+                yield (model.symbols(shown=True), model.symbols(atoms=True))
+
+
 def main():
     start_time = time.time()
     args = get_command_line_arguments()
@@ -278,114 +376,16 @@ def main():
         print(f"num_instances must be a non-negative number but is {args.num_instances}.")
         sys.exit(1)
 
-    models = []
-    full_models = []
-      # for gathering ASP models where no variables are ignored, the
-      # variable 'models' on the other hand holds the ASP models where
-      # only atoms relevant for instance generation are included
-    if args.representative:
-        print("Setting up ASP solver clingo")
-        ctl = Control(["0"])
-          # "0", i. e. "all models", because for cautious / brave consequences
-          # clingo needs to consider all models
-        ctl.add(translated_domain)
-        ctl.ground()
-
-        print("Calling clingo to compute brave consequences")
-        brave_consequences = get_consequences(ctl, ConsequencesType.BRAVE)
-
-        print("Calling clingo to compute cautious consequences")
-        cautious_consequences = get_consequences(ctl,
-                                                 ConsequencesType.CAUTIOUS)
-
-        # representativeness is determined in terms of a set of target atoms
-        target_atoms = [atom for atom in brave_consequences if atom not in
-                        cautious_consequences]
-          # we choose the facet inducing atoms as target atoms, i. e., the
-          # atoms that appear in some answer set but not in all answer sets
-        if not target_atoms:
-              # brave_consequences == cautious_consequences, i. e., there is
-              # exactly one answer set
-            print("No facet-inducing atoms were found, thus the domain characterization admits exactly one instance.")
-            print("Calling clingo to compute the only ASP model")
-            with ctl.solve(yield_ = True) as solve_handle:
-                model = solve_handle.model()
-                models = [model.symbols(shown=True)]
-                if args.print_asp_model:
-                    full_models = [model.symbols(atoms=True)]
-                if not solve_handle.get().satisfiable:
-                    print(f"Clingo could not compute the ASP model, reason: {solve_handle.get()}")
-                    sys.exit(1)
-        else:
-            print("Calling clingo to compute representative ASP models")
-#            sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
-#              # :- not a1, not a2, not a3, ..., not an.
-#              # ensures that each answer set includes at least one target atom
-#              # TODO is this rule really useful? it gets subsumed by the rules
-#              # added in each iteration
-            model_number = 0
-            to_cover = target_atoms.copy()
-            while to_cover:
-                model_number += 1
-                if args.num_instances > 0 and model_number > args.num_instances:
-                    break
-                    # compute all possible ASP models if args.num_instances ==
-                    # 0, otherwise compute at most args.num_instances ASP
-                    # models
-                current_target = to_cover[0]
-                # TODO choose current target atom according to more sophisticated
-                # strategy than just using the first one?
-#                ctl = Control([f"{args.num_instances}"])
-#                ctl.add(translated_domain)
-##                ctl.add(sieve_rule)
-##                ctl.add(f":- not {current_target}.")
-#                ctl.ground()
-                with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
-                        as solve_handle:
-                    model = solve_handle.model()
-                    # TODO choose model according to more sophisticated
-                    # strategy than just using first one?
-                    assert(solve_handle.get().satisfiable)
-                      # by definition of facet-inducing atoms, at least one ASP
-                      # model must exist for each facet-inducing atom (which
-                      # are the target atoms)
-                    models.append(model.symbols(shown=True))
-                    full_models.append(model.symbols(atoms=True))
-                    to_cover = [atom for atom in to_cover if atom not in
-                                model.symbols(atoms=True)]
-                      # all target atoms occuring in the current ASP model are
-                      # covered and thus are removed from to_cover
-            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}")
-    else: # args.representative == False
-        print("Setting up ASP solver clingo")
-        ctl = Control([f"{args.num_instances}"])
-        ctl.add(translated_domain)
-        ctl.ground()
-        if args.num_instances > 0:
-            print(f"Calling clingo to compute up to {args.num_instances} ASP models")
-        else:
-            print(f"Calling clingo to compute all possible ASP models")
-        with ctl.solve(yield_ = True) as solve_handle:
-            for model in solve_handle:
-                models.append(model.symbols(shown=True))
-                if args.print_asp_model:
-                    full_models.append(model.symbols(atoms=True))
-            if not solve_handle.get().satisfiable:
-                print(f"Clingo could not compute the ASP models, reason: {solve_handle.get()}")
-                sys.exit(1)
-
-    if args.print_asp_model:
-        assert(len(models) == len(full_models))
-
     # create the instances from the ASP models and generate the output
     # according to args
-    print("Generating the instances from the ASP models")
     instance_number = 0
-    for model in models:
+    for (model, full_model) in get_asp_models(translated_domain,
+                                              args.num_instances,
+                                              args.representative):
         instance_number += 1
         if args.print_asp_model:
             print(f"ASP model of instance number {instance_number}:")
-            print(full_models[instance_number-1])
+            print(full_model)
         instance = create_instance(model, instance_number, domain)
         if args.output_file_prefix:
             with open(f"{args.output_file_prefix}{instance_number}.pddl",

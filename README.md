@@ -13,7 +13,7 @@ After cloning the repository, the instance generator can be installed via
 [pip](https://pip.pypa.io/en/stable/installation/). If you want to change the
 code and immediately test it, consider installing the instance generator with
 the `-e` option of pip, or (install its dependencies manually and) call it
-directly from the src-folder (`cd src && python3 -m instance_generator -h`).
+directly from the src-folder (`cd src && python3 -m instance_generator`).
 
 ### Recommended Steps
 
