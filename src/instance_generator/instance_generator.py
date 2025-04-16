@@ -211,15 +211,16 @@ def get_consequences(ctl: Control, consequences_type: ConsequencesType):
     solve_mode_backup = ctl.configuration.solve.enum_mode
     ctl.configuration.solve.enum_mode = consequences_type.name.lower()
     with ctl.solve(yield_ = True) as solve_handle:
-        consequences = []
-          # overwrite this in every loop because only last computed model
-          # contains the actual consequences
-        for model in solve_handle:
-            consequences = model.symbols(shown=True)
-            # TODO use atoms here instead of shown? soe uses shown
-        if not solve_handle.get().satisfiable:
+        model = solve_handle.model()
+        if model is None:
             print(f"Clingo could not compute {consequences_type.name.lower()} consequences, reason: {solve_handle.get()}")
             sys.exit(1)
+        for model in solve_handle:
+            # only the last computed model contains the actual consequences
+            pass
+        consequences = model.symbols(shown=True)
+        # TODO use atoms here instead of shown? soe uses shown
+    # clean up
     ctl.configuration.solve.models = num_models_backup
     ctl.configuration.solve.enum_mode = solve_mode_backup
     return consequences
@@ -247,8 +248,8 @@ def representativeness(atoms, models):
 
 def get_asp_models(translated_domain, num_instances: int, representative: bool):
     # returns a generator yielding tuples of the form (model, full_model) where
-    # full_model contains all atoms while model only contains those atoms that
-    # are relevant for creating an instance from it
+    # full_model contains all atoms of the ASP model while model only contains
+    # those atoms that are relevant for creating an instance from it
 
     if representative:
         print("Setting up ASP solver clingo")
@@ -276,10 +277,10 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
             print("No facet-inducing atoms were found, thus the domain characterization admits exactly one instance.")
             print("Calling clingo to compute the only ASP model")
             with ctl.solve(yield_ = True) as solve_handle:
-                if not solve_handle.get().satisfiable:
+                model = solve_handle.model()
+                if model is None:
                     print(f"Clingo could not compute the ASP model, reason: {solve_handle.get()}")
                     sys.exit(1)
-                model = solve_handle.model()
                 yield (model.symbols(shown=True), model.symbols(atoms=True))
         else:
             print("Calling clingo to compute representative ASP models")
@@ -307,13 +308,13 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
 #                ctl.ground()
                 with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
                         as solve_handle:
-                    assert(solve_handle.get().satisfiable)
-                      # by definition of facet-inducing atoms, at least one ASP
-                      # model must exist for each facet-inducing atom (which
-                      # are the target atoms)
                     model = solve_handle.model()
                     # TODO choose model according to more sophisticated
                     # strategy than just using first one?
+                    assert(not model is None)
+                      # by definition of facet-inducing atoms, at least one ASP
+                      # model must exist for each facet-inducing atom (which
+                      # are the target atoms)
                     yield (model.symbols(shown=True), model.symbols(atoms=True))
                     to_cover = [atom for atom in to_cover if atom not in
                                 model.symbols(atoms=True)]
@@ -323,12 +324,7 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
 #            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}")
     else: # representative == False
         print("Setting up ASP solver clingo")
-        num_asp_models = num_instances if num_instances == 0 else num_instances + 1
-        ctl = Control([f"{num_asp_models}"])
-          # clingo seems to treat the argument as an *exclusive* upper bound
-          # on the number of asp models to compute, so we add 1 to
-          # num_instances (if it is not zero) such that clingo computes
-          # num_instances many instances (or less)
+        ctl = Control([f"{num_instances}"])
         ctl.add(translated_domain)
         ctl.ground()
         if num_instances > 0:
@@ -336,9 +332,11 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
         else:
             print(f"Calling clingo to compute all possible ASP models")
         with ctl.solve(yield_ = True) as solve_handle:
-            if not solve_handle.get().satisfiable:
+            model = solve_handle.model()
+            if model is None:
                 print(f"Clingo could not compute the ASP models, reason: {solve_handle.get()}")
                 sys.exit(1)
+            yield (model.symbols(shown=True), model.symbols(atoms=True))
             for model in solve_handle:
                 yield (model.symbols(shown=True), model.symbols(atoms=True))
 
