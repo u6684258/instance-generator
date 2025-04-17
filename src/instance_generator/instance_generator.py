@@ -226,23 +226,19 @@ def get_consequences(ctl: Control, consequences_type: ConsequencesType):
     return consequences
 
 
-def shannon_entropy(atoms, models):
-    # Shannon entropy of the atoms over the models
+def shannon_entropy(atoms, atom_frequencies: Counter):
+    # Shannon entropy of the atoms given their frequencies
     # https://stackoverflow.com/questions/15450192/fastest-way-to-compute-entropy-in-python
-    atom_occurences = [atom for model in models for atom in model if atom in atoms]
-    atom_frequencies = Counter(atom_occurences)
-    assert(0 not in atom_frequencies.values())
-      # each atom must occur in at least one model
     probabilities = [float(freq) / atom_frequencies.total() for freq in
                      atom_frequencies.values()]
     entropy = sum([-prob*log2(prob) for prob in probabilities])
     return entropy
 
 
-def representativeness(atoms, models):
-    # computes how evenly the atoms are distributed among the models
+def representativeness(atoms, atom_frequencies):
+    # computes how evenly the atoms are distributed,
     # value lies in (0,1]
-    entropy = shannon_entropy(atoms, models)
+    entropy = shannon_entropy(atoms, atom_frequencies)
     return 2**(entropy-log2(len(atoms)))
 
 
@@ -291,6 +287,8 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
 #              # added in each iteration
             current_model_number = 0
             to_cover = target_atoms.copy()
+            atom_frequencies = Counter()
+              # counts in how many generated ASP models each target atom occurs
             while to_cover:
                 current_model_number += 1
                 if num_instances > 0 and current_model_number > num_instances:
@@ -316,12 +314,20 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
                       # model must exist for each facet-inducing atom (which
                       # are the target atoms)
                     yield (model.symbols(shown=True), model.symbols(atoms=True))
+
+                    # update atom_frequencies based on newly generated ASP model
+                    for atom in target_atoms:
+                        if atom in model.symbols(atoms=True):
+                            atom_frequencies[atom] += 1
+
+                    # all target atoms occuring in the current ASP model are
+                    # covered and thus we remove them from to_cover
                     to_cover = [atom for atom in to_cover if atom not in
                                 model.symbols(atoms=True)]
-                      # all target atoms occuring in the current ASP model are
-                      # covered and thus are removed from to_cover
-            # TODO calculate representative score outside this method
-#            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, full_models)}")
+            # (This part of the function will be executed eventually because in
+            # the caller we use a for-loop over the generator returned by this
+            # function.)
+            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, atom_frequencies)}")
     else: # representative == False
         print("Setting up ASP solver clingo")
         ctl = Control([f"{num_instances}"])
