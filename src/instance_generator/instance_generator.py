@@ -7,7 +7,6 @@ from math import log2
 import subprocess
 import sys
 import tempfile
-import time
 from typing import Dict, List, Optional
 
 from clingo import Control
@@ -17,6 +16,7 @@ from pydantic import BaseModel
 from . import asp_translator
 from . import pddl
 from . import pddl_parser
+from . import timers
 from .axiom_normalizer import normalize_axioms
 
 
@@ -248,19 +248,19 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
     # those atoms that are relevant for creating an instance from it
 
     if representative:
-        print("Setting up ASP solver clingo")
-        ctl = Control(["0"])
-          # "0", i. e. "all models", because for cautious / brave consequences
-          # clingo needs to consider all models
-        ctl.add(translated_domain)
-        ctl.ground()
+        with timers.timing("Setting up ASP solver clingo"):
+            ctl = Control(["0"])
+              # "0", i. e. "all models", because for cautious / brave consequences
+              # clingo needs to consider all models
+            ctl.add(translated_domain)
+            ctl.ground()
 
-        print("Calling clingo to compute brave consequences")
-        brave_consequences = get_consequences(ctl, ConsequencesType.BRAVE)
+        with timers.timing("Calling clingo to compute brave consequences"):
+            brave_consequences = get_consequences(ctl, ConsequencesType.BRAVE)
 
-        print("Calling clingo to compute cautious consequences")
-        cautious_consequences = get_consequences(ctl,
-                                                 ConsequencesType.CAUTIOUS)
+        with timers.timing("Calling clingo to compute cautious consequences"):
+            cautious_consequences = get_consequences(ctl,
+                                                     ConsequencesType.CAUTIOUS)
 
         # representativeness is determined in terms of a set of target atoms
         target_atoms = [atom for atom in brave_consequences if atom not in
@@ -271,106 +271,107 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
               # brave_consequences == cautious_consequences, i. e., there is
               # exactly one answer set
             print("No facet-inducing atoms were found, thus the domain characterization admits exactly one instance.")
-            print("Calling clingo to compute the only ASP model")
+            with timers.timing("Calling clingo to compute the only ASP model"):
+                with ctl.solve(yield_ = True) as solve_handle:
+                    model = solve_handle.model()
+                    if model is None:
+                        print(f"Clingo could not compute the ASP model, reason: {solve_handle.get()}")
+                        sys.exit(1)
+                    yield (model.symbols(shown=True), model.symbols(atoms=True))
+        else:
+            with timers.timing("Calling clingo to compute representative ASP models", block=True):
+#                sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
+#                  # :- not a1, not a2, not a3, ..., not an.
+#                  # ensures that each answer set includes at least one target atom
+#                  # TODO is this rule really useful? it gets subsumed by the rules
+#                  # added in each iteration
+                current_model_number = 0
+                to_cover = target_atoms.copy()
+                atom_frequencies = Counter()
+                  # counts in how many generated ASP models each target atom occurs
+                while to_cover:
+                    current_model_number += 1
+                    if num_instances > 0 and current_model_number > num_instances:
+                        break
+                        # compute all possible ASP models if num_instances ==
+                        # 0, otherwise compute at most num_instances ASP
+                        # models
+                    current_target = to_cover[0]
+                    # TODO choose current target atom according to more sophisticated
+                    # strategy than just using the first one?
+#                    ctl = Control([f"{num_instances}"])
+#                    ctl.add(translated_domain)
+##                    ctl.add(sieve_rule)
+##                    ctl.add(f":- not {current_target}.")
+#                    ctl.ground()
+                    with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
+                            as solve_handle:
+                        model = solve_handle.model()
+                        # TODO choose model according to more sophisticated
+                        # strategy than just using first one?
+                        assert(not model is None)
+                          # by definition of facet-inducing atoms, at least one ASP
+                          # model must exist for each facet-inducing atom (which
+                          # are the target atoms)
+                        yield (model.symbols(shown=True), model.symbols(atoms=True))
+
+                        # update atom_frequencies based on newly generated ASP model
+                        for atom in target_atoms:
+                            if atom in model.symbols(atoms=True):
+                                atom_frequencies[atom] += 1
+
+                        # all target atoms occuring in the current ASP model are
+                        # covered and thus we remove them from to_cover
+                        to_cover = [atom for atom in to_cover if atom not in
+                                    model.symbols(atoms=True)]
+                # (This part of the function will be executed eventually because in
+                # the caller we use a for-loop over the generator returned by this
+                # function.)
+                print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, atom_frequencies)}")
+    else: # representative == False
+        with timers.timing("Setting up ASP solver clingo"):
+            ctl = Control([f"{num_instances}"])
+            ctl.add(translated_domain)
+            ctl.ground()
+        if num_instances > 0:
+            msg = f"Calling clingo to compute up to {num_instances} ASP models"
+        else:
+            msg = "Calling clingo to compute all possible ASP models"
+        with timers.timing(msg, block=True):
             with ctl.solve(yield_ = True) as solve_handle:
                 model = solve_handle.model()
                 if model is None:
-                    print(f"Clingo could not compute the ASP model, reason: {solve_handle.get()}")
+                    print(f"Clingo could not compute the ASP models, reason: {solve_handle.get()}")
                     sys.exit(1)
                 yield (model.symbols(shown=True), model.symbols(atoms=True))
-        else:
-            print("Calling clingo to compute representative ASP models")
-#            sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
-#              # :- not a1, not a2, not a3, ..., not an.
-#              # ensures that each answer set includes at least one target atom
-#              # TODO is this rule really useful? it gets subsumed by the rules
-#              # added in each iteration
-            current_model_number = 0
-            to_cover = target_atoms.copy()
-            atom_frequencies = Counter()
-              # counts in how many generated ASP models each target atom occurs
-            while to_cover:
-                current_model_number += 1
-                if num_instances > 0 and current_model_number > num_instances:
-                    break
-                    # compute all possible ASP models if num_instances ==
-                    # 0, otherwise compute at most num_instances ASP
-                    # models
-                current_target = to_cover[0]
-                # TODO choose current target atom according to more sophisticated
-                # strategy than just using the first one?
-#                ctl = Control([f"{num_instances}"])
-#                ctl.add(translated_domain)
-##                ctl.add(sieve_rule)
-##                ctl.add(f":- not {current_target}.")
-#                ctl.ground()
-                with ctl.solve(yield_ = True, assumptions=[(current_target, True)]) \
-                        as solve_handle:
-                    model = solve_handle.model()
-                    # TODO choose model according to more sophisticated
-                    # strategy than just using first one?
-                    assert(not model is None)
-                      # by definition of facet-inducing atoms, at least one ASP
-                      # model must exist for each facet-inducing atom (which
-                      # are the target atoms)
+                for model in solve_handle:
                     yield (model.symbols(shown=True), model.symbols(atoms=True))
-
-                    # update atom_frequencies based on newly generated ASP model
-                    for atom in target_atoms:
-                        if atom in model.symbols(atoms=True):
-                            atom_frequencies[atom] += 1
-
-                    # all target atoms occuring in the current ASP model are
-                    # covered and thus we remove them from to_cover
-                    to_cover = [atom for atom in to_cover if atom not in
-                                model.symbols(atoms=True)]
-            # (This part of the function will be executed eventually because in
-            # the caller we use a for-loop over the generator returned by this
-            # function.)
-            print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, atom_frequencies)}")
-    else: # representative == False
-        print("Setting up ASP solver clingo")
-        ctl = Control([f"{num_instances}"])
-        ctl.add(translated_domain)
-        ctl.ground()
-        if num_instances > 0:
-            print(f"Calling clingo to compute up to {num_instances} ASP models")
-        else:
-            print(f"Calling clingo to compute all possible ASP models")
-        with ctl.solve(yield_ = True) as solve_handle:
-            model = solve_handle.model()
-            if model is None:
-                print(f"Clingo could not compute the ASP models, reason: {solve_handle.get()}")
-                sys.exit(1)
-            yield (model.symbols(shown=True), model.symbols(atoms=True))
-            for model in solve_handle:
-                yield (model.symbols(shown=True), model.symbols(atoms=True))
 
 
 def main():
-    start_time = time.time()
+    timer = timers.Timer()
     args = get_command_line_arguments()
 
     domain = pddl_parser.open(args.domain)
 
-    print("Normalizing axioms to Stratified Datalog")
-    # TODO verify stratification?
-    normalize_axioms(domain)
-    if args.print_normalized_domain:
-        print("Normalized PDDL domain:")
-        domain.dump()
-        print()
+    with timers.timing("Normalizing axioms to Stratified Datalog"):
+        # TODO verify stratification?
+        normalize_axioms(domain)
+        if args.print_normalized_domain:
+            print("Normalized PDDL domain:")
+            domain.dump()
+            print()
 
-    print("Translating to ASP")
-    if args.num_objects:
-        universe = {"object": args.num_objects} # generic PDDL type "object"
-        translated_domain = asp_translator.translate(domain, universe, {})
-    else:
-        extended_input = load_and_validate_extended_input(args.extended_input)
-        universe = extended_input["universe"]
-        constraints = extended_input["cardinality_constraints"]
-        translated_domain = asp_translator.translate(domain, universe,
-                                                     constraints)
+    with timers.timing("Translating to ASP"):
+        if args.num_objects:
+            universe = {"object": args.num_objects} # generic PDDL type "object"
+            translated_domain = asp_translator.translate(domain, universe, {})
+        else:
+            extended_input = load_and_validate_extended_input(args.extended_input)
+            universe = extended_input["universe"]
+            constraints = extended_input["cardinality_constraints"]
+            translated_domain = asp_translator.translate(domain, universe,
+                                                         constraints)
     if args.print_translated_domain:
         print("ASP program of translated domain:")
         print(translated_domain)
@@ -380,28 +381,29 @@ def main():
         print(f"num_instances must be a non-negative number but is {args.num_instances}.")
         sys.exit(1)
 
-    # create the instances from the ASP models and generate the output
-    # according to args
-    instance_number = 0
-    for (model, full_model) in get_asp_models(translated_domain,
-                                              args.num_instances,
-                                              args.representative):
-        instance_number += 1
-        if args.print_asp_model:
-            print(f"ASP model of instance number {instance_number}:")
-            print(full_model)
-        instance = create_instance(model, instance_number, domain)
-        if args.output_file_prefix:
-            with open(f"{args.output_file_prefix}{instance_number}.pddl",
-                      "w") as f:
-                f.write(instance)
-                f.write("\n\n")
-        else:
-            print(f"Instance number {instance_number}:")
-            print(instance)
-            print()
+    with timers.timing("Generating instances", block=True):
+        # create the instances from the ASP models and generate the output
+        # according to args
+        instance_number = 0
+        for (model, full_model) in get_asp_models(translated_domain,
+                                                  args.num_instances,
+                                                  args.representative):
+            instance_number += 1
+            if args.print_asp_model:
+                print(f"ASP model of instance number {instance_number}:")
+                print(full_model)
+            instance = create_instance(model, instance_number, domain)
+            if args.output_file_prefix:
+                with open(f"{args.output_file_prefix}{instance_number}.pddl",
+                          "w") as f:
+                    f.write(instance)
+                    f.write("\n\n")
+            else:
+                print(f"Instance number {instance_number}:")
+                print(instance)
+                print()
     print(f"Finished generating {instance_number} instances")
-    print(f"Program runtime: {time.time()-start_time} seconds")
+    print(f"Program runtime: {timer}")
 
 
 if __name__ == "__main__":
