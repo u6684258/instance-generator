@@ -4,9 +4,7 @@ import argparse
 from collections import Counter, defaultdict
 from enum import Enum
 from math import log2
-import subprocess
 import sys
-import tempfile
 from typing import Dict, List, Optional
 
 from clingo import Control
@@ -16,7 +14,7 @@ from pydantic import BaseModel
 from . import asp_translator
 from . import pddl
 from . import pddl_parser
-from . import timers
+from . import profiling
 from .axiom_normalizer import normalize_axioms
 
 
@@ -248,17 +246,17 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
     # those atoms that are relevant for creating an instance from it
 
     if representative:
-        with timers.timing("Setting up ASP solver clingo"):
+        with profiling.profiling("Setting up ASP solver clingo"):
             ctl = Control(["0"])
               # "0", i. e. "all models", because for cautious / brave consequences
               # clingo needs to consider all models
             ctl.add(translated_domain)
             ctl.ground()
 
-        with timers.timing("Calling clingo to compute brave consequences"):
+        with profiling.profiling("Calling clingo to compute brave consequences"):
             brave_consequences = get_consequences(ctl, ConsequencesType.BRAVE)
 
-        with timers.timing("Calling clingo to compute cautious consequences"):
+        with profiling.profiling("Calling clingo to compute cautious consequences"):
             cautious_consequences = get_consequences(ctl,
                                                      ConsequencesType.CAUTIOUS)
 
@@ -271,7 +269,7 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
               # brave_consequences == cautious_consequences, i. e., there is
               # exactly one answer set
             print("No facet-inducing atoms were found, thus the domain characterization admits exactly one instance.")
-            with timers.timing("Calling clingo to compute the only ASP model"):
+            with profiling.profiling("Calling clingo to compute the only ASP model"):
                 with ctl.solve(yield_ = True) as solve_handle:
                     model = solve_handle.model()
                     if model is None:
@@ -279,7 +277,7 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
                         sys.exit(1)
                     yield (model.symbols(shown=True), model.symbols(atoms=True))
         else:
-            with timers.timing("Calling clingo to compute representative ASP models", block=True):
+            with profiling.profiling("Calling clingo to compute representative ASP models", block=True):
 #                sieve_rule = f":- not {", not ".join([str(atom) for atom in target_atoms])}."
 #                  # :- not a1, not a2, not a3, ..., not an.
 #                  # ensures that each answer set includes at least one target atom
@@ -329,7 +327,7 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
                 # function.)
                 print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, atom_frequencies)}")
     else: # representative == False
-        with timers.timing("Setting up ASP solver clingo"):
+        with profiling.profiling("Setting up ASP solver clingo"):
             ctl = Control([f"{num_instances}"])
             ctl.add(translated_domain)
             ctl.ground()
@@ -337,7 +335,7 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
             msg = f"Calling clingo to compute up to {num_instances} ASP models"
         else:
             msg = "Calling clingo to compute all possible ASP models"
-        with timers.timing(msg, block=True):
+        with profiling.profiling(msg, block=True):
             with ctl.solve(yield_ = True) as solve_handle:
                 model = solve_handle.model()
                 if model is None:
@@ -349,12 +347,13 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
 
 
 def main():
-    timer = timers.Timer()
-    args = get_command_line_arguments()
+    timer = profiling.Timer()
+    memory_measurement = profiling.MemoryMeasurement()
 
+    args = get_command_line_arguments()
     domain = pddl_parser.open(args.domain)
 
-    with timers.timing("Normalizing axioms to Stratified Datalog"):
+    with profiling.profiling("Normalizing axioms to Stratified Datalog"):
         # TODO verify stratification?
         normalize_axioms(domain)
         if args.print_normalized_domain:
@@ -362,7 +361,7 @@ def main():
             domain.dump()
             print()
 
-    with timers.timing("Translating to ASP"):
+    with profiling.profiling("Translating to ASP"):
         if args.num_objects:
             universe = {"object": args.num_objects} # generic PDDL type "object"
             translated_domain = asp_translator.translate(domain, universe, {})
@@ -381,9 +380,7 @@ def main():
         print(f"num_instances must be a non-negative number but is {args.num_instances}.")
         sys.exit(1)
 
-    with timers.timing("Generating instances", block=True):
-        # create the instances from the ASP models and generate the output
-        # according to args
+    with profiling.profiling("Generating instances", block=True):
         instance_number = 0
         for (model, full_model) in get_asp_models(translated_domain,
                                                   args.num_instances,
@@ -403,8 +400,10 @@ def main():
                 print(instance)
                 print()
     print(f"Finished generating {instance_number} instances")
-    print(f"Program runtime: {timer}")
+    print(f"Runtime: {timer}")
+    print(f"Memory: {memory_measurement}")
 
 
 if __name__ == "__main__":
     main()
+
