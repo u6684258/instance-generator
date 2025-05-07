@@ -27,12 +27,10 @@ class MemoryMeasurement:
 
     def __str__(self):
         rss_after, vms_after, shared_after = get_process_memory()
-        return "[{} RSS, {} VMS, {} shared]".format(format_bytes(rss_after -
-                                                                 self.rss_before),
-                                                    format_bytes(vms_after -
-                                                                 self.vms_before),
-                                                    format_bytes(shared_after -
-                                                                 self.shared_before))
+        return "[{} RSS, {} VMS, {} shared]".format(
+                    format_bytes_to_mb(rss_after - self.rss_before),
+                    format_bytes_to_mb(vms_after - self.vms_before),
+                    format_bytes_to_mb(shared_after - self.shared_before))
 
 
 # memory profiling based on
@@ -52,6 +50,10 @@ def format_bytes(bytes):
         return str(round(bytes / 1e6, 2)) + "MB"
     else:
         return str(round(bytes / 1e9, 2)) + "GB"
+
+
+def format_bytes_to_mb(bytes):
+    return str(round(bytes / 1e6, 2)) + "MB"
 
 
 @contextlib.contextmanager
