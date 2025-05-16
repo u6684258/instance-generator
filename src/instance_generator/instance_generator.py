@@ -39,7 +39,7 @@ def get_command_line_arguments():
     parser.add_argument("--print_translated_domain", action="store_true",
                         help="print the ASP program that the input PDDL domain is translated to")
     parser.add_argument("--print_asp_model", action="store_true",
-                        help="for each generated instance print the ASP model it is based on (including derived predicates and helper predicates from the Fast Downward translator)")
+                        help="for each generated instance print the ASP model it is based on (including the derived predicates and helper predicates from the Fast Downward translator)")
     return parser.parse_args()
 
 

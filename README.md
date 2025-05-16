@@ -52,8 +52,8 @@ python3 -m instance_generator <domain-file> -n <universe-size>
 ```
 This generates a single instance where
 
-- `<domain-file>` is the PDDL domain file for which an instance will be
-  generated, and
+- `<domain-file>` is the PDDL domain file for which an instance is generated,
+  and
 - `<universe-size>` is a positive integer that specifies how many objects the
   generated instance will have.
 
@@ -96,8 +96,8 @@ be structured as follows:
 `universe`: The keys are types mentioned in the PDDL domain file. Their values
 are positive integers that specify how many objects of the corresponding types
 the generated instances must have.  
-One can use PDDL's generic type "object" if the domain does not use types or if
-one wishes to not require a specific type for some or all objects (i. e., if
+You can use PDDL's generic type "object" if the domain does not use types or if
+you want to not require a specific type for some or all objects (i. e., if
 the ASP solver should choose the types). 
 
 `cardinality_constraints`: The keys are names of basic predicates mentioned in
@@ -165,11 +165,21 @@ of parameters in axiom heads:
 ```
 
 
-## Required Python Modules
+## Debugging a Domain File
 
-**TODO** add links?
-- clingo
-- pydantic
+If no instance could be generated and the cause might be the input domain, the
+following options might help you debugging the domain:
+
+- `--print_normalized_domain` To print the normalized PDDL domain which is
+  computed in a preprocessing step (using the Fast Downward translator).
+- `--print_translated_domain` To print the ASP program that the input PDDL
+  domain is translated to. This ASP program can be used as input for clingo
+  directly.
+- `--print_asp_model` To print the ASP models (i. e. answer sets) of the ASP
+  program that corresponds to the input domain. Each generated instance is
+  based on one such ASP model. Compared to the generated instances their
+  corresponding ASP models also include helper predicates from the Fast
+  Downward translator and the derived predicates.
 
 
 ## References
