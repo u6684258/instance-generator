@@ -287,6 +287,7 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
                 to_cover = target_atoms.copy()
                 atom_frequencies = Counter()
                   # counts in how many generated ASP models each target atom occurs
+                # implementation of S-Greedy (Böhl, Gaggl, and Rusovac 2023)
                 while to_cover:
                     current_model_number += 1
                     if num_instances > 0 and current_model_number > num_instances:
