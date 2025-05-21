@@ -122,6 +122,7 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
       # for gathering the objects and all PDDL types each object has according
       # to the ASP model
     initial_state = []
+    goal_atoms = []
     pddl_type_names = [t.name.lower() for t in domain.types]
     for atom in asp_atoms:
         atom_name, atom_arguments = translate_to_atom_name_and_arguments(
@@ -133,6 +134,7 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
             argument = atom_arguments[0]
             object_string = translate_to_object_string(argument, is_clingo_model)
             object_type = translate_to_pddl_type(atom_name, domain)
+            # TODO only do following line if 
             objects[object_string].add(object_type)
         else:
             # else the atom is a basic predicate and thus is added to the
@@ -141,7 +143,13 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
             for arg in atom_arguments:
                 argument_string = translate_to_object_string(arg, is_clingo_model)
                 arguments.append(argument_string)
-            initial_state.append(f"({atom_name} {' '.join(arguments)})")
+            # TODO make this less hacky (i. e., make it full feature for
+            # STRIPS domains that domain-wide goal of certain structure is
+            # translated to conjunctive goal)
+            if atom_name[-2:] == "_g":
+                goal_atoms.append(f"({atom_name[:-2]} {' '.join(arguments)})")
+            else:
+                initial_state.append(f"({atom_name} {' '.join(arguments)})")
 
     typed_objects = []
     # attach the type to each object that is not a base type of the object
@@ -154,7 +162,7 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
           # an object can have only one type that is not a base type
         object_type = non_base_types[0]
         typed_objects.append(f"{obj} - {object_type.name.lower()}")
-    return typed_objects, initial_state
+    return typed_objects, initial_state, goal_atoms
 
 
 def create_instance(asp_model, model_number: int, domain: pddl.Domain):
@@ -162,7 +170,7 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
     # model
     instance_parts = []
 
-    objects, initial_state = extract_objects_and_initial_state(
+    objects, initial_state, goal_atoms = extract_objects_and_initial_state(
             asp_model, domain)
 
     objects_string = "(:objects\n  " + '\n  '.join(objects) + "\n)"
@@ -178,7 +186,9 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
     initial_state_string = "(:init\n  " + '\n  '.join(initial_state) + "\n)"
     instance_parts.append(initial_state_string)
 
-    goal = f"(:goal\n  {domain.goal.pddl_string()}\n)"
+    # TODO make this less hacky, see todo in extract_objects_and_initial_state
+#    goal = f"(:goal\n  {domain.goal.pddl_string()}\n)"
+    goal = f"(:goal (and {' '.join(goal_atoms)})\n)"
     instance_parts.append(goal)
 
     if has_action_costs:
