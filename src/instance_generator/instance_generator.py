@@ -124,6 +124,7 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
     initial_state = []
     goal_atoms = []
     pddl_type_names = [t.name.lower() for t in domain.types]
+    domain_object_names = [o.name for o in domain.objects]
     for atom in asp_atoms:
         atom_name, atom_arguments = translate_to_atom_name_and_arguments(
                 atom, is_clingo_model)
@@ -132,10 +133,12 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
             # that type to the objects-dictionary
             assert(len(atom_arguments) == 1)
             argument = atom_arguments[0]
-            object_string = translate_to_object_string(argument, is_clingo_model)
+            object_name = translate_to_object_string(argument, is_clingo_model)
             object_type = translate_to_pddl_type(atom_name, domain)
-            # TODO only do following line if 
-            objects[object_string].add(object_type)
+            if not object_name in domain_object_names:
+                # do not add objects to the instance that are
+                # already mentioned in the domain description
+                objects[object_name].add(object_type)
         else:
             # else the atom is a basic predicate and thus is added to the
             # initial state
