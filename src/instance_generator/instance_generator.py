@@ -342,7 +342,7 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
                 print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, atom_frequencies)}")
     else: # representative == False
         with profiling.profiling("Setting up ASP solver clingo"):
-            ctl = Control([f"{num_instances}"])
+            ctl = Control([f"{num_instances}", "--rand-freq=1.0"])
             ctl.add(translated_domain)
             ctl.ground()
         if num_instances > 0:
