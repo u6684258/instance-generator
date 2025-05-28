@@ -4,7 +4,11 @@ Representations of Classical Planning Domains. In Proceedings of the 34th
 International Conference on Automated Planning and Scheduling (ICAPS 2024), pp.
 239-248. 2024.*
 
-**TODO** explain basic pipeline and cite clingo
+It uses the parser of [Fast Downward](https://github.com/aibasel/downward) to
+parse an input domain. The program then translates this domain to an answer set
+program and uses [clingo](https://github.com/potassco/clingo) to solve and
+generate answer sets for it. Lastly, the program translates the answer sets to
+PDDL instances as output.
 
 
 ## Setup
