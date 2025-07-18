@@ -27,19 +27,19 @@ def get_command_line_arguments():
     arg_group.add_argument("-n","--num_objects", type=int,
                         help="number of objects the instances will have")
     arg_group.add_argument("-e", "--extended_input",
-                           help="JSON file specifying how many objects of which types the instances will have, and potentially constraints on how many atoms of a certain predicate there will be")
+                           help="JSON file specifying how many objects of which types the instances will have, and optionally constraints on how many atoms of a certain predicate there will be")
     parser.add_argument("num_instances", nargs='?', type=int, default=1,
                         help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
     parser.add_argument("--representative", action="store_true",
                         help="generate a set of instances that is representative for the given domain")
     parser.add_argument("-o", "--output_file_prefix",
-                        help="write generated instances to files whose names begin with the given prefix")
+                        help="write the generated instances to files whose names begin with the given prefix")
     parser.add_argument("--print_normalized_domain", action="store_true",
-                        help="print the normalized PDDL domain")
+                        help="additionally print the normalized PDDL domain")
     parser.add_argument("--print_translated_domain", action="store_true",
-                        help="print the ASP program that the input PDDL domain is translated to")
+                        help="additionally print the ASP program that the input PDDL domain is translated to")
     parser.add_argument("--print_asp_model", action="store_true",
-                        help="for each generated instance print the ASP model it is based on (including the derived predicates and helper predicates from the Fast Downward translator)")
+                        help="for each generated instance additionally print the ASP model it is based on (including the derived predicates and helper predicates from the Fast Downward translator)")
     return parser.parse_args()
 
 

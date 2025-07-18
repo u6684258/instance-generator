@@ -1,8 +1,8 @@
-Program to generate PDDL instances for PDDL domains extended with axioms (and a
-domain-wide goal) as described in *C. Grundke, G. Röger, M. Helmert. Formal
-Representations of Classical Planning Domains. In Proceedings of the 34th
-International Conference on Automated Planning and Scheduling (ICAPS 2024), pp.
-239-248. 2024.*
+A program to generate PDDL instances for PDDL domains extended with
+legality-constraints (and a domain-wide goal) as described in *C. Grundke, G.
+Röger, M. Helmert. Formal Representations of Classical Planning Domains. In
+Proceedings of the 34th International Conference on Automated Planning and
+Scheduling (ICAPS 2024), pp. 239-248. 2024.*
 
 It uses the parser of [Fast Downward](https://github.com/aibasel/downward) to
 parse an input domain. The program then translates this domain to an answer set
@@ -14,10 +14,13 @@ PDDL instances as output.
 ## Setup
 
 After cloning the repository, the instance generator can be installed via
-[pip](https://pip.pypa.io/en/stable/installation/). If you want to change the
-code and immediately test it, consider installing the instance generator with
-the `-e` option of pip, or (install its dependencies manually and) call it
-directly from the src-folder (`cd src && python3 -m instance_generator`).
+[pip](https://pip.pypa.io/en/stable/installation/). The [following
+section](#recommended-steps) gives a step-by-step explanation for this setup. 
+
+If you want to change the code of the instance generator and immediately test
+it, we suggest installing the instance generator with the `-e` option of pip,
+or (install its dependencies manually and) call it directly from the src-folder
+(`cd src && python3 -m instance_generator`).
 
 ### Recommended Steps
 
@@ -27,11 +30,12 @@ Clone the repository:
 git clone ... instance-generator
 ```
 
-Create a virtual environment and activate it (this is not necessary but keeps
-your system clean by capsulating the instance generator and its dependencies):
+Create a virtual environment and activate it (this step is not necessary but
+keeps your system clean by capsulating the instance generator and its
+dependencies):
 ```
-python3 -m venv --prompt instance-generator-venv .venv
-source .venv/bin/activate
+python3 -m venv --prompt instance-generator-venv instance-generator/.venv
+source instance-generator/.venv/bin/activate
 ```
 (You can deactivate the virtual environment with `deactivate`.)
 
@@ -48,9 +52,12 @@ python3 -m instance_generator -h
 
 ## Usage
 
-Use `-h` or `--help` to see all options of the program.
+Use `-h` or `--help` to see all options of the program. If you installed the
+instance generator in a virtual environment (as recommended in the [previous
+section](#recommended-steps)) do not forget to activate the environment
+(`source instance-generator/.venv/bin/activate`).
 
-Basic usage:
+**Basic usage:**
 ```
 python3 -m instance_generator <domain-file> -n <universe-size>
 ```
@@ -59,11 +66,22 @@ This generates a single instance where
 - `<domain-file>` is the PDDL domain file for which an instance is generated,
   and
 - `<universe-size>` is a positive integer that specifies how many objects the
-  generated instance will have.
+  generated instance shall have.
 
-**TODO** add example domain (blocksworld, or floortile because of types) and
-example JSDON-file to repo, and explain how could for example call program
-for them
+**Usage with type information and cardinality constraints:**
+
+Instead of giving the number of objects (via `-n`) that the generated instances
+shall have you can use the `-e` option. With this option you can give
+information about how many objects of certain types the generated instances
+shall have and specify cardinality-constraints. This option expects a JSON file
+formatted as described in the section [Format of Extended-Input
+File](#format-of-extended-input-file). You can find two examples for such JSON
+files in the `examples` folder.
+
+Example call:
+```
+python3 -m instance_generator instance-generator/examples/blocksworld-domain.pddl -e instance-generator/examples/blocksworld-universe.json
+```
 
 
 ## Representative Instances
@@ -79,13 +97,10 @@ output a *representative value* of the generated set of instances. This value
 lies in the interval (0, 1] and a high value roughly means that the generated
 set of instances represents the given domain well.
 
-**TODO** add detailed explanation including formula? if not, refer to
-explanations and formula of Böhl et al., 2023; if yes, explain that we choose
-all "shown" facet-inducing atoms as target atoms (i. e., atoms of basic
-predicates and of PDDL types)
-
-The implementation to generate representative instances is based on the work of
-Böhl et al., 2023[^boehl-et-al-ecai2023].
+The implementation to generate representative instances is based on the paper
+*E. Böhl, S. Gaggl, D. Rusovac. Representative Answer Sets: Collecting
+Something of Everything. In Proceedings of the 26th European Conference on
+Artificial Intelligence (ECAI 2023), pp. 271 - 278. 2023.*
 
 
 ## Format of Extended-Input File
@@ -184,12 +199,4 @@ following options might help you debugging the domain:
   based on one such ASP model. Compared to the generated instances their
   corresponding ASP models also include helper predicates from the Fast
   Downward translator and the derived predicates.
-
-
-## References
-
-[^boehl-et-al-ecai2023] Elisa Böhl, Sarah Gaggl, Dominik Rusovac,
-Representative Answer Sets: Collecting Something of Everything, In Proceedings
-of ECAI 2023, pp. 271 - 278
-
 
