@@ -1,9 +1,0 @@
-{
-  "universe": {
-    "object": 5
-  },
-  "cardinality_constraints": {
-    "on-table": [-1,2],
-    "on_g": [4,-1]
-  }
-}
