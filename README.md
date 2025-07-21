@@ -63,8 +63,7 @@ python3 -m instance_generator <domain-file> -n <universe-size>
 ```
 This generates a single instance where
 
-- `<domain-file>` is the PDDL domain file for which an instance is generated,
-  and
+- `<domain-file>` is the domain file for which an instance is generated, and
 - `<universe-size>` is a positive integer that specifies how many objects the
   generated instance shall have.
 
@@ -74,7 +73,7 @@ Instead of giving the number of objects (via `-n`) that the generated instances
 shall have you can use the `-e` option. With this option you can give
 information about how many objects of certain types the generated instances
 shall have and specify cardinality-constraints. This option expects a JSON file
-formatted as described in the section [Format of Extended-Input
+as described in the section [Format of Extended-Input
 File](#format-of-extended-input-file). You can find two examples for such JSON
 files in the `examples` folder.
 
@@ -105,27 +104,35 @@ Artificial Intelligence (ECAI 2023), pp. 271 - 278. 2023.*
 
 ## Format of Extended-Input File
 
-**TODO** explain what extended-input file is and what it does (and why might
-want to create / use one)
+If you call the instance generator with the `-e` option (instead of `-n`) it
+expects an *extended-input file*. With this file you can specify the *types*
+of some or all objects that the generated instances will include. Furthermore,
+you can specify *cardinality constraints* that the generated instances will
+follow, i. e. how many atoms of given predicates shall be included in the
+generated instances.
 
-JSON file with a key `universe` and, optionally, a key
-`cardinality_constraints`. The values for both keys are dictionaries that must
-be structured as follows:
+The `examples` folder includes such an extended-input file for the Blocksworld
+domain (`blocksworld-universe.json`) and for the Childsnack domain
+(`childsnack-universe.json`).
 
-`universe`: The keys are types mentioned in the PDDL domain file. Their values
-are positive integers that specify how many objects of the corresponding types
-the generated instances must have.  
+The extended-input file is a [JSON](https://www.json.org/json-en.html) file
+with a key `universe` and, optionally, a key `cardinality_constraints`. The
+values for both keys are dictionaries that must be structured as follows:
+
+`universe`: The keys are types mentioned in the domain file. Their values are
+positive integers that specify how many objects of the corresponding types the
+generated instances must have.  
 You can use PDDL's generic type "object" if the domain does not use types or if
 you want to not require a specific type for some or all objects (i. e., if
 the ASP solver should choose the types). 
 
 `cardinality_constraints`: The keys are names of basic predicates mentioned in
-the PDDL domain file. The values are lists where each list contains two
-integers larger or equal to -1. The first integer specifies the (inclusive)
-lower bound on the number of atoms of the corresponding predicate that the
-generated instances will have (-1 corresponds to the minimal possible value
-which is usually 0). The second integer specifies the (inclusive) upper bound
-(-1 corresponds to the maximal possible value, i. e., $$n^u$$ for $$n$$-ary
+the domain file. The values are lists where each list contains two integers
+larger or equal to -1. The first integer specifies the (inclusive) lower bound
+on the number of atoms of the corresponding predicate that the generated
+instances will have (-1 corresponds to the minimal possible value which is
+usually 0). The second integer specifies the (inclusive) upper bound (-1
+corresponds to the maximal possible value, i. e., $$n^u$$ for $$n$$-ary
 predicates over a universe of size $$u$$).
 
 An extended-input file for the blocksworld domain could for example look like
@@ -152,13 +159,13 @@ generator expects the following from domain files:
 - The types of parameters of derived predicates are repeated in the axiom heads
   that define the respective derived predicates.
 - The types mentioned in an axiom head are consistent with those of the
-  corresponding derived predicate in the `:predicate` section (the type is
-  repeated or the axiom head specifies a subtype).
+  corresponding derived predicate from the `:predicate` section (the type is
+  identical or the axiom head specifies a subtype).
 
 For example,
 
 ```
-; ...
+;; ...
 
 (:predicates
   ;; ...
@@ -189,13 +196,14 @@ of parameters in axiom heads:
 If no instance could be generated and the cause might be the input domain, the
 following options might help you debugging the domain:
 
-- `--print_normalized_domain` To print the normalized PDDL domain which is
-  computed in a preprocessing step (using the Fast Downward translator).
-- `--print_translated_domain` To print the ASP program that the input PDDL
-  domain is translated to. This ASP program can be used as input for clingo
-  directly.
+- `--print_normalized_domain` To print the domain description after it was
+  normalized by the preprocessing step (which uses the Fast Downward translator).
+- `--print_translated_domain` To print the ASP program that the input domain is
+  translated to. This ASP program can be used as input for the ASP solver
+  clingo directly. Each ASP model (alias answer set) of this ASP program
+  corresponds to one instance that the instance generator can produce.
 - `--print_asp_model` To print the ASP models (i. e. answer sets) of the ASP
-  program that corresponds to the input domain. Each generated instance is
+  program corresponding to the input domain. Each generated instance is
   based on one such ASP model. Compared to the generated instances their
   corresponding ASP models also include helper predicates from the Fast
   Downward translator and the derived predicates.
