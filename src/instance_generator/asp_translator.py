@@ -279,6 +279,7 @@ class ASPGenerator:
         axioms = [axiom.asp_string(translate_to_asp_predicate,
             translate_to_asp_term) for axiom in self.domain.axioms]
 
+        axioms.extend(self.generate_subtype_constraints())
         axioms.extend(self.generate_parameter_type_axioms())
         axioms.extend(self.generate_type_hierarchy_axioms())
 
@@ -287,6 +288,25 @@ class ASPGenerator:
                 self.domain.legality_predicate)
         axioms.append(f":- not {legality_predicate}().")
         return axioms
+
+
+    def generate_subtype_constraints(self):
+        # generates an integrity constraint for each object that has a specific
+        # type t; this constraint ensures that no subtype of t can be assigned
+        # to this object
+        constraints = []
+        for obj in self.objects:
+            if obj.type_name != self.generic_type.name:
+                subtypes = [t for t in self.domain.types if t.basetype_name == obj.type_name]
+                  # this list only includes direct subtypes, not subtypes that
+                  # are lower in the type hierarchy; this suffices because if
+                  # the direct subtypes are prevented then the type-hierarchy
+                  # axioms ensure that no lower subtypes can be assigned
+                object_name = translate_to_asp_object(obj.name)
+                for subtype in subtypes:
+                    subtype_name = translate_to_asp_predicate(subtype.name)
+                    constraints.append(f":- {subtype_name}({object_name}).")
+        return constraints
 
 
     def generate_parameter_type_axioms(self):
