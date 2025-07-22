@@ -40,6 +40,8 @@ def get_command_line_arguments():
                         help="additionally print the ASP program that the input PDDL domain is translated to")
     parser.add_argument("--print_asp_model", action="store_true",
                         help="for each generated instance additionally print the ASP model it is based on (including the derived predicates and helper predicates from the Fast Downward translator)")
+    parser.add_argument("--rand_freq", type=float,
+                        help="let clingo make random decisions with probability RAND_FREQ") # TODO improve help-message
     return parser.parse_args()
 
 
@@ -253,7 +255,7 @@ def representativeness(atoms, atom_frequencies):
     return 2**(entropy-log2(len(atoms)))
 
 
-def get_asp_models(translated_domain, num_instances: int, representative: bool):
+def get_asp_models(translated_domain, num_instances: int, representative: bool, rand_freq: float = None):
     # returns a generator yielding tuples of the form (model, full_model) where
     # full_model contains all atoms of the ASP model while model only contains
     # those atoms that are relevant for creating an instance from it
@@ -342,7 +344,11 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool):
                 print(f"The representativeness score of the set of generated ASP models is {representativeness(target_atoms, atom_frequencies)}")
     else: # representative == False
         with profiling.profiling("Setting up ASP solver clingo"):
-            ctl = Control([f"{num_instances}", "--rand-freq=1.0"])
+            if rand_freq:
+                print("in if branch -------------------------------------------------------")
+                ctl = Control([f"{num_instances}", f"--rand-freq={rand_freq}"])
+            else:
+                ctl = Control([f"{num_instances}"])
             ctl.add(translated_domain)
             ctl.ground()
         if num_instances > 0:
@@ -365,6 +371,13 @@ def main():
     memory_measurement = profiling.MemoryMeasurement()
 
     args = get_command_line_arguments()
+    if args.num_instances < 0:
+        print(f"num_instances must be a non-negative number but is {args.num_instances}.")
+        sys.exit(1)
+    if args.rand_freq and (args.rand_freq < 0.0 or args.rand_freq > 1.0):
+        print(f"rand_freq must be a float in the interval [0.0, 1.0] but is {args.rand_freq}")
+        sys.exit(1)
+
     domain = pddl_parser.open(args.domain)
 
     with profiling.profiling("Normalizing axioms to Stratified Datalog"):
@@ -390,15 +403,12 @@ def main():
         print(translated_domain)
         print()
 
-    if args.num_instances < 0:
-        print(f"num_instances must be a non-negative number but is {args.num_instances}.")
-        sys.exit(1)
-
     with profiling.profiling("Generating instances", block=True):
         instance_number = 0
         for (model, full_model) in get_asp_models(translated_domain,
                                                   args.num_instances,
-                                                  args.representative):
+                                                  args.representative,
+                                                  args.rand_freq):
             instance_number += 1
             if args.print_asp_model:
                 print(f"ASP model of instance number {instance_number}:")
