@@ -15,6 +15,8 @@ SYNTAX_PREDICATE = "(PREDICATE_NAME [VARIABLE [- TYPE]?]*)"
 SYNTAX_PREDICATES = f"(:predicates {SYNTAX_PREDICATE}*)"
 SYNTAX_LEGALITY_PREDICATE = "PREDICATE_NAME"
 SYNTAX_FUNCTION = "(FUNCTION_NAME [VARIABLE [- TYPE]?]*)"
+SYNTAX_ACTION = "(:action NAME [:parameters PARAMETERS]? " \
+                "[:precondition PRECONDITION]? :effect EFFECT)"
 SYNTAX_AXIOM = "(:derived PREDICATE CONDITION)"
 SYNTAX_FORMALIZATION_AXIOM = "(:axiom PREDICATE CONDITION)"
 SYNTAX_GOAL = "(:domain-goal GOAL)"
@@ -25,6 +27,12 @@ SYNTAX_CONDITION_IMPLY = "(imply CONDITION CONDITION)"
 SYNTAX_CONDITION_NOT = "(not CONDITION)"
 SYNTAX_CONDITION_FORALL_EXISTS = "({forall, exists} VARIABLES CONDITION)"
 
+SYNTAX_EFFECT_FORALL = "(forall VARIABLES EFFECT)"
+SYNTAX_EFFECT_WHEN = "(when CONDITION EFFECT)"
+SYNTAX_EFFECT_INCREASE = "(increase (total-cost) ASSIGNMENT)"
+
+SYNTAX_EXPRESSION = "POSITIVE_NUMBER or (FUNCTION VARIABLES*)"
+SYNTAX_ASSIGNMENT = "({=,increase} EXPRESSION EXPRESSION)"
 SYNTAX_DOMAIN_DOMAIN_NAME = "(domain NAME)"
 
 CONDITION_TAG_TO_SYNTAX = {
@@ -317,6 +325,127 @@ def _get_predicate_id_and_arity(context, text, type_dict, predicate_dict):
         return the_type.get_predicate_name(), 1
 
 
+def analyse_effects(context, alist, result, type_dict, predicate_dict,
+                  affected_predicates):
+    """Analyse a PDDL effect (any combination of simple, conjunctive, conditional, and universal)
+       for affected predicates."""
+    tmp_effect = analyse_effect(context, alist, type_dict, predicate_dict,
+                              affected_predicates)
+
+
+def add_effect(tmp_effect, result):
+    """tmp_effect has the following structure:
+       [ConjunctiveEffect] [UniversalEffect] [ConditionalEffect] SimpleEffect."""
+
+    if isinstance(tmp_effect, pddl.ConjunctiveEffect):
+        for effect in tmp_effect.effects:
+            add_effect(effect, result)
+        return
+    else:
+        parameters = []
+        condition = pddl.Truth()
+        if isinstance(tmp_effect, pddl.UniversalEffect):
+            parameters = tmp_effect.parameters
+            if isinstance(tmp_effect.effect, pddl.ConditionalEffect):
+                condition = tmp_effect.effect.condition
+                assert isinstance(tmp_effect.effect.effect, pddl.SimpleEffect)
+                effect = tmp_effect.effect.effect.effect
+            else:
+                assert isinstance(tmp_effect.effect, pddl.SimpleEffect)
+                effect = tmp_effect.effect.effect
+        elif isinstance(tmp_effect, pddl.ConditionalEffect):
+            condition = tmp_effect.condition
+            assert isinstance(tmp_effect.effect, pddl.SimpleEffect)
+            effect = tmp_effect.effect.effect
+        else:
+            assert isinstance(tmp_effect, pddl.SimpleEffect)
+            effect = tmp_effect.effect
+        assert isinstance(effect, pddl.Literal)
+        # Check for contradictory effects
+        condition = condition.simplified()
+        new_effect = pddl.Effect(parameters, condition, effect)
+        contradiction = pddl.Effect(parameters, condition, effect.negate())
+        if contradiction not in result:
+            result.append(new_effect)
+        else:
+            # We use add-after-delete semantics, keep positive effect
+            if isinstance(contradiction.literal, pddl.NegatedAtom):
+                result.remove(contradiction)
+                result.append(new_effect)
+
+
+def analyse_effect(context, alist, type_dict, predicate_dict, affected_predicates):
+    tag = alist[0]
+    if tag == "and":
+        effects = []
+        for eff in alist[1:]:
+            analyse_effect(context, eff, type_dict, predicate_dict, affected_predicates)
+    elif tag == "forall":
+        analyse_effect(context, alist[2], type_dict, predicate_dict, affected_predicates)
+    elif tag == "when":
+        analyse_effect(context, alist[2], type_dict, predicate_dict, affected_predicates)
+    elif tag != "increase":
+        affected = parse_literal(context, alist, {}, predicate_dict)
+        affected_predicates.add(affected.predicate)
+
+
+
+def parse_expression(context, exp):
+    with context.layer("Parsing expression"):
+        if isinstance(exp, list):
+            if len(exp) < 1:
+                context.error("Expression cannot be an empty block.",
+                              syntax=SYNTAX_EXPRESSION)
+            functionsymbol = exp[0]
+            return pddl.PrimitiveNumericExpression(functionsymbol, exp[1:])
+        elif exp.replace(".", "").isdigit() and exp.count(".") <= 1:
+            return pddl.NumericConstant(float(exp))
+        elif exp[0] == "-":
+            context.error("Expression cannot be a negative number",
+                          syntax=SYNTAX_EXPRESSION)
+        else:
+            return pddl.PrimitiveNumericExpression(exp, [])
+
+
+def parse_assignment(context, alist):
+    with context.layer("Parsing Assignment"):
+        if len(alist) != 3:
+            context.error("Assignment expects two arguments",
+                          syntax=SYNTAX_ASSIGNMENT)
+        op = alist[0]
+        head = parse_expression(context, alist[1])
+        exp = parse_expression(context, alist[2])
+        if op == "=":
+            return pddl.Assign(head, exp)
+        elif op == "increase":
+            return pddl.Increase(head, exp)
+        else:
+            context.error(f"Unsupported assignment operator '{op}'."
+                          f" Use '=' or 'increase'.")
+
+
+# only determines what predicates are affected by the action and adds these predicate
+# names to parameter affected_predicates.
+def analyse_action(context, alist, type_dict, predicate_dict, affected_predicates):
+        iterator = iter(alist)
+        action_tag = next(iterator)
+        name = next(iterator)
+        parameters_tag_opt = next(iterator)
+        if parameters_tag_opt == ":parameters":
+            next(iterator)
+            precondition_tag_opt = next(iterator)
+        else:
+            precondition_tag_opt = parameters_tag_opt
+        if precondition_tag_opt == ":precondition":
+            next(iterator)
+            next(iterator)
+        effect_list = next(iterator)
+        eff = []
+        if effect_list:
+            analyse_effects(context, effect_list, eff, type_dict, predicate_dict,
+                          affected_predicates)
+
+
 def parse_axiom(context, alist, type_dict, predicate_dict, legality):
     with context.layer("Parsing derived predicate"):
         if len(alist) != 3:
@@ -337,8 +466,9 @@ def parse_axiom(context, alist, type_dict, predicate_dict, legality):
                           len(predicate.arguments), condition, legality)
 
 
-def parse_axioms_and_skip_actions(context, entries, type_dict, predicate_dict):
+def parse_axioms_and_analyse_actions(context, entries, type_dict, predicate_dict):
     the_axioms = []
+    affected_preds = set()
     for no, entry in enumerate(entries, start=1):
         with context.layer(f"Parsing {no}. axiom/action entry"):
             assert_named_block(context, entry, [":derived", ":action", ":axiom"])
@@ -350,8 +480,8 @@ def parse_axioms_and_skip_actions(context, entries, type_dict, predicate_dict):
                         legality))
             else:
                 assert entry[0] == ":action"
-                # the instance generator ignores actions
-    return the_axioms
+                analyse_action(context, entry, type_dict, predicate_dict, affected_preds)
+    return the_axioms, affected_preds
 
 
 def parse_domain(domain_pddl):
@@ -359,14 +489,14 @@ def parse_domain(domain_pddl):
     if not isinstance(domain_pddl, list):
         context.error("Invalid definition of a PDDL domain.")
     domain_name, domain_requirements, types, type_dict, constants, predicates, \
-        predicate_dict, functions, legality_predicate, goal, axioms = parse_domain_pddl(context, domain_pddl)
+        predicate_dict, functions, legality_predicate, goal, axioms, affected_predicates = parse_domain_pddl(context, domain_pddl)
 
     requirements = pddl.Requirements(sorted(set(
                 domain_requirements.requirements)))
 
     return pddl.Domain(
         domain_name, legality_predicate, requirements, types, constants,
-        predicates, functions, goal, axioms)
+        predicates, functions, goal, axioms, affected_predicates)
 
 
 def parse_domain_pddl(context, domain_pddl):
@@ -465,7 +595,8 @@ def parse_domain_pddl(context, domain_pddl):
             entries.append(first_action)
         entries.extend(iterator)
 
-        the_axioms = parse_axioms_and_skip_actions(
+        the_axioms, affected_predicates = parse_axioms_and_analyse_actions(
             context, entries, type_dict, predicate_dict)
 
         yield the_axioms
+        yield affected_predicates

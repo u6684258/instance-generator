@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Set
 
 from . import axioms
 from . import predicates
@@ -15,7 +15,8 @@ class Domain:
                  types: List[Type], objects: List[TypedObject], predicates:
                  List[Predicate], functions: List[Function],
                  goal: Condition,
-                 axioms: List[Axiom]) -> None:
+                 axioms: List[Axiom],
+                 affected_predicates: Set[str]) -> None:
         self.domain_name = domain_name
         self.legality_predicate = legality_predicate
         self.requirements = requirements
@@ -25,6 +26,7 @@ class Domain:
         self.functions = functions
         self.goal = goal
         self.axioms = axioms
+        self.affected_predicates = affected_predicates
         self.axiom_counter = 0
 
     def add_axiom(self, parameters, condition, legality):
@@ -58,6 +60,8 @@ class Domain:
             print("Axioms:")
             for axiom in self.axioms:
                 axiom.dump()
+        print("Affected predicates:")
+        print(self.affected_predicates)
 
 
 REQUIREMENT_LABELS = [
