@@ -345,7 +345,6 @@ def get_asp_models(translated_domain, num_instances: int, representative: bool, 
     else: # representative == False
         with profiling.profiling("Setting up ASP solver clingo"):
             if rand_freq:
-                print("in if branch -------------------------------------------------------")
                 ctl = Control([f"{num_instances}", f"--rand-freq={rand_freq}"])
             else:
                 ctl = Control([f"{num_instances}"])
