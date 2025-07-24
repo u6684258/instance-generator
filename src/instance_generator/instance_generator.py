@@ -34,6 +34,8 @@ def get_command_line_arguments():
                         help="generate a set of instances that is representative for the given domain")
     parser.add_argument("-o", "--output_file_prefix",
                         help="write the generated instances to files whose names begin with the given prefix")
+    parser.add_argument("--ground-and-simplify-goal", action="store_true",
+                        help="ground first-order goal and simplify it wrt static atoms. In many cases, this will lead to STRIPS goals.")
     parser.add_argument("--print_normalized_domain", action="store_true",
                         help="additionally print the normalized PDDL domain")
     parser.add_argument("--print_translated_domain", action="store_true",
@@ -124,9 +126,7 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
       # for gathering the objects and all PDDL types each object has according
       # to the ASP model
     initial_state = []
-    goal_atoms = []
     pddl_type_names = [t.name.lower() for t in domain.types]
-    domain_object_names = [o.name for o in domain.objects]
     for atom in asp_atoms:
         atom_name, atom_arguments = translate_to_atom_name_and_arguments(
                 atom, is_clingo_model)
@@ -137,24 +137,13 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
             argument = atom_arguments[0]
             object_name = translate_to_object_string(argument, is_clingo_model)
             object_type = translate_to_pddl_type(atom_name, domain)
-            if not object_name in domain_object_names:
-                # do not add objects to the instance that are
-                # already mentioned in the domain description
-                objects[object_name].add(object_type)
+            objects[object_name].add(object_type)
         else:
             # else the atom is a basic predicate and thus is added to the
             # initial state
-            arguments = []
-            for arg in atom_arguments:
-                argument_string = translate_to_object_string(arg, is_clingo_model)
-                arguments.append(argument_string)
-            # TODO make this less hacky (i. e., make it full feature for
-            # STRIPS domains that domain-wide goal of certain structure is
-            # translated to conjunctive goal)
-            if atom_name[-2:] == "_g":
-                goal_atoms.append(f"({atom_name[:-2]} {' '.join(arguments)})")
-            else:
-                initial_state.append(f"({atom_name} {' '.join(arguments)})")
+            arguments = [translate_to_object_string(arg, is_clingo_model)
+                         for arg in atom_arguments]
+            initial_state.append(pddl.Atom(f"{atom_name}", arguments))
 
     typed_objects = []
     # attach the type to each object that is not a base type of the object
@@ -166,19 +155,35 @@ def extract_objects_and_initial_state(asp_model, domain: pddl.Domain):
         assert(len(non_base_types) == 1)
           # an object can have only one type that is not a base type
         object_type = non_base_types[0]
-        typed_objects.append(f"{obj} - {object_type.name.lower()}")
-    return typed_objects, initial_state, goal_atoms
+        typed_objects.append(pddl.TypedObject(obj, object_type.name.lower()))
+    return typed_objects, initial_state
 
 
-def create_instance(asp_model, model_number: int, domain: pddl.Domain):
+def get_objects_by_type(typed_objects, types):
+    result = defaultdict(list)
+    supertypes = {}
+    for type in types:
+        supertypes[type.name] = type.supertype_names
+    for obj in typed_objects:
+        result[obj.type_name].append(obj.name)
+        for type in supertypes[obj.type_name]:
+            result[type].append(obj.name)
+    return result
+
+
+def create_instance(asp_model, model_number: int, domain: pddl.Domain,
+                    ground_goal):
     # builds the string of the PDDL instance that corresponds to the given ASP
     # model
     instance_parts = []
 
-    objects, initial_state, goal_atoms = extract_objects_and_initial_state(
+    typed_objects, initial_state = extract_objects_and_initial_state(
             asp_model, domain)
+    domain_object_names = [o.name for o in domain.objects]
 
-    objects_string = "(:objects\n  " + '\n  '.join(objects) + "\n)"
+    objects_strings = [f"{obj.name} - {obj.type_name}" for obj in
+                       typed_objects if obj.name not in domain_object_names]
+    objects_string = "(:objects\n  " + '\n  '.join(objects_strings) + "\n)"
     instance_parts.append(objects_string)
 
     assert(len(domain.functions) <= 1)
@@ -188,12 +193,21 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain):
 
     if has_action_costs:
         initial_state.insert(0, "(= (total-cost) 0)")
-    initial_state_string = "(:init\n  " + '\n  '.join(initial_state) + "\n)"
+    initial_state_string = "(:init\n  " + '\n  '.join(atom.pddl_string() for
+                                                      atom in initial_state) + "\n)"
     instance_parts.append(initial_state_string)
 
     # TODO make this less hacky, see todo in extract_objects_and_initial_state
-#    goal = f"(:goal\n  {domain.goal.pddl_string()}\n)"
-    goal = f"(:goal (and {' '.join(goal_atoms)})\n)"
+    if ground_goal:
+        derived_predicates = [axiom.name for axiom in domain.axioms]
+        objects_by_type = get_objects_by_type(typed_objects, domain.types)
+        grounded_goal = domain.goal.ground({}, initial_state,
+                                           domain.affected_predicates,
+                                           derived_predicates, objects_by_type)
+        goal = grounded_goal.simplified()
+        goal = f"(:goal\n {goal.pddl_string()}\n)"
+    else:
+        goal = f"(:goal\n  {domain.goal.pddl_string()}\n)"
     instance_parts.append(goal)
 
     if has_action_costs:
@@ -412,7 +426,8 @@ def main():
             if args.print_asp_model:
                 print(f"ASP model of instance number {instance_number}:")
                 print(full_model)
-            instance = create_instance(model, instance_number, domain)
+            instance = create_instance(model, instance_number, domain,
+                                       args.ground_and_simplify_goal)
             if args.output_file_prefix:
                 with open(f"{args.output_file_prefix}{instance_number}.pddl",
                           "w") as f:

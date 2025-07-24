@@ -1,3 +1,4 @@
+from itertools import product
 from typing import List
 
 from .pddl_types import TypedObject
@@ -83,6 +84,9 @@ class ConstantCondition(Condition):
         return self
     def __eq__(self, other):
         return self.__class__ is other.__class__
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        return self
 
 class Impossible(Exception):
     pass
@@ -92,6 +96,8 @@ class Falsity(ConstantCondition):
         raise Impossible()
     def negate(self):
         return Truth()
+    def pddl_string(self):
+        return f"(or )"
 
 class Truth(ConstantCondition):
     def to_untyped_strips(self):
@@ -100,6 +106,8 @@ class Truth(ConstantCondition):
         pass
     def negate(self):
         return Falsity()
+    def pddl_string(self):
+        return f"(and )"
 
 class JunctorCondition(Condition):
     # Defining __eq__ blocks inheritance of __hash__, so must set it explicitly.
@@ -111,6 +119,11 @@ class JunctorCondition(Condition):
                 self.parts == other.parts)
     def change_parts(self, parts):
         return self.__class__(parts)
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        return self.__class__([p.ground(var_mapping, init_facts, affected_predicates,
+                               derived_predicates, typed_objects)
+                               for p in self.parts])
 
 class Conjunction(JunctorCondition):
     def _simplified(self, parts):
@@ -190,6 +203,21 @@ class QuantifiedCondition(Condition):
             return parts[0]
         else:
             return self._propagate(parts)
+    def _ground_aux(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        param_objects = [(param.name, typed_objects[param.type_name])
+                         for param in self.parameters]
+        instantiations = product(*[entry[1] for entry in param_objects])
+        part_instantiations = []
+        for inst in instantiations:
+            var_map = dict(var_mapping)
+            var_map.update(zip((e[0] for e in param_objects), inst))
+            ground_part = self.parts[0].ground(var_map, init_facts,
+                                               affected_predicates,
+                                               derived_predicates,
+                                               typed_objects)
+            part_instantiations.append(ground_part)
+        return part_instantiations
 
     def uniquify_variables(self, type_map, renamings={}):
         renamings = dict(renamings) # Create a copy.
@@ -220,6 +248,13 @@ class UniversalCondition(QuantifiedCondition):
                       self.parameters]
         parts = [part.pddl_string() for part in self.parts]
         return f"(forall ({' '.join(parameters)}) {' '.join(parts)})"
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        part_instantiations = self._ground_aux(var_mapping, init_facts,
+                                               affected_predicates,
+                                               derived_predicates,
+                                               typed_objects)
+        return Conjunction(part_instantiations)
 
 class ExistentialCondition(QuantifiedCondition):
     def _untyped(self, parts):
@@ -231,6 +266,14 @@ class ExistentialCondition(QuantifiedCondition):
     def instantiate(self, var_mapping, init_facts, fluent_facts, result):
         assert not result, "Condition not simplified"
         self.parts[0].instantiate(var_mapping, init_facts, fluent_facts, result)
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        part_instantiations = self._ground_aux(self, var_mapping, init_facts,
+                                               affected_predicates,
+                                               derived_predicates,
+                                               typed_objects)
+        return Disjunction(part_instantiations)
+            
     def has_existential_part(self):
         return True
     def pddl_string(self):
@@ -313,6 +356,17 @@ class Atom(Literal):
             result.append(atom)
         elif atom not in init_facts:
             raise Impossible()
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        args = [var_mapping.get(arg, arg) for arg in self.args]
+        atom = Atom(self.predicate, args)
+        if (self.predicate in affected_predicates or
+            self.predicate in derived_predicates):
+            return atom
+        if atom in init_facts:
+            return Truth()
+        else:
+            return Falsity()
     def negate(self):
         return NegatedAtom(self.predicate, self.args)
     def positive(self):
@@ -329,6 +383,18 @@ class NegatedAtom(Literal):
             result.append(NegatedAtom(self.predicate, args))
         elif atom in init_facts:
             raise Impossible()
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        args = [var_mapping.get(arg, arg) for arg in self.args]
+        if (self.predicate in affected_predicates or
+            self.predicate in derived_predicates):
+            return self.NegatedAtom(self.predicate, args)
+        atom = Atom(self.predicate, args)
+        if atom in init_facts:
+            return Falsity()
+        else:
+            return Truth()
+        
     def negate(self):
         return Atom(self.predicate, self.args)
     positive = negate
