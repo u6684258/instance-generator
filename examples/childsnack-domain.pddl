@@ -1,8 +1,4 @@
-;; Childsnack domain file as used in the IPC 2023 learning track, extended
-;; with legality-constraints that replicate those from the IPC Childsnack
-;; instance generator
-;;
-;; original source: https://github.com/AI-Planning/pddl-generators/blob/main/childsnack/domain.pddl
+;; source: https://github.com/AI-Planning/pddl-generators/blob/main/childsnack/domain.pddl
 ;; updates:
 ;;   - :equality removed
 ;;   - :negative-preconditions added
@@ -24,24 +20,23 @@
     (allergic_gluten ?c - child)
     (not_allergic_gluten ?c - child)
     (served ?c - child)
-    (served_g ?c - child)
     (waiting ?c - child ?p - place)
     (at ?t - tray ?p - place)
     (notexist ?s - sandwich)
     (legal)
     (illegal)
     (matching-child-sandwich ?c - child ?s - sandwich)
-    (matching-child-bread-content ?ch - child
-                                  ?br - bread-portion
-                                  ?co - content-portion)
+    (matching-sandwich-bread-content ?s - sandwich
+                                     ?b - bread-portion
+                                     ?c - content-portion)
+    (matching-no-gluten-portion ?ch - child
+                                ?br - bread-portion
+                                ?co - content-portion)
 )
 
 (:legality-predicate legal)
 
-;; (:domain-goal (forall (?c - child) (served ?c)))
-;; hack to make instance generator rewrite this correctly  to instance-specific
-;; STRIPS goals
-(:domain-goal (forall (?c - child) (imply (served_g ?c) (served ?c))))
+(:domain-goal (forall (?c - child) (served ?c)))
 
 (:action make_sandwich_no_gluten
 	 :parameters (?s - sandwich ?b - bread-portion ?c - content-portion)
@@ -117,9 +112,6 @@
         (at ?t ?p2))
 )
 
-
-;; constraints to determine the legality of Childsnack instances
-
 (:axiom (legal) (not (illegal)))
 
 ;; there is at least one child (as a side effect, the following axiom also
@@ -151,18 +143,36 @@
           (not (exists (?s - sandwich)
                        (matching-child-sandwich ?c ?s)))))
 
+;; the number of sandwiches, bread portions, and content portions is the same
+(:axiom (matching-sandwich-bread-content ?s - sandwich
+                                         ?b - bread-portion
+                                         ?c - content-portion)
+  (and (forall (?sx - sandwich) (or (= ?s ?sx) (< ?s ?sx)))
+       (forall (?bx - bread-portion) (or (= ?b ?bx) (< ?b ?bx)))
+       (forall (?cx - content-portion) (or (= ?c ?cx) (< ?c ?cx)))))
+(:axiom (matching-sandwich-bread-content ?s - sandwich
+                                         ?b - bread-portion
+                                         ?c - content-portion)
+  (exists (?sx - sandwich ?bx - bread-portion ?cx - content-portion)
+          (and (matching-sandwich-bread-content ?sx ?bx ?cx)
+               (< ?sx ?s)
+               (< ?bx ?b)
+               (< ?cx ?c)
+               (not (exists (?sy - sandwich) (and (< ?sx ?sy) (< ?sy ?s))))
+               (not (exists (?by - bread-portion) (and (< ?bx ?by) (< ?by ?b))))
+               (not (exists (?cy - content-portion) (and (< ?cx ?cy) (< ?cy ?c)))))))
 (:axiom (illegal)
-  (exists (?ch - child)
-          (not (exists (?br - bread-portion ?co - content-portion)
-                       (matching-child-bread-content ?ch ?br ?co)))))
+  (exists (?s - sandwich)
+          (not (exists (?b - bread-portion ?c - content-portion)
+                       (matching-sandwich-bread-content ?s ?b ?c)))))
 (:axiom (illegal)
-  (exists (?br - bread-portion)
-          (not (exists (?ch - child ?co - content-portion)
-                       (matching-child-bread-content ?ch ?br ?co)))))
+  (exists (?b - bread-portion)
+          (not (exists (?s - sandwich ?c - content-portion)
+                       (matching-sandwich-bread-content ?s ?b ?c)))))
 (:axiom (illegal)
-  (exists (?co - content-portion)
-          (not (exists (?ch - child ?br - bread-portion)
-                       (matching-child-bread-content ?ch ?br ?co)))))
+  (exists (?c - content-portion)
+          (not (exists (?s - sandwich ?b - bread-portion)
+                       (matching-sandwich-bread-content ?s ?b ?c)))))
 
 ;; all bread-portions and content-portions are at the kitchen
 (:axiom (illegal) (exists (?b - bread-portion) (not (at_kitchen_bread ?b))))
@@ -174,18 +184,44 @@
 (:axiom (illegal) (exists (?c - child) (and (not (allergic_gluten ?c))
                                             (not (not_allergic_gluten ?c)))))
 
-;; the number of bread-portions with no gluten and the number of
-;; content-portions with no gluten is the same as the number of children that
-;; are allergic to gluten (the following two axioms describe a sufficient, but
-;; not necessary, condition such that this is the case)
+;; the number of bread-portions with no gluten, the number of
+;; content-portions with no gluten and the number of children that
+;; are allergic to gluten are the same
+(:axiom (matching-no-gluten-portion ?ch - child
+                                    ?br - bread-portion
+                                    ?co - content-portion)
+  (and (allergic_gluten ?ch)
+       (no_gluten_bread ?br)
+       (no_gluten_content ?co)
+       (forall (?chx - child) (or (= ?ch ?chx) (< ?ch ?chx)))
+       (forall (?brx - bread-portion) (or (= ?br ?brx) (< ?br ?brx)))
+       (forall (?cox - content-portion) (or (= ?co ?cox) (< ?co ?cox)))))
+(:axiom (matching-no-gluten-portion ?ch - child
+                                    ?br - bread-portion
+                                    ?co - content-portion)
+  (exists (?chx - child ?brx - bread-portion ?cox - content-portion)
+          (and (matching-no-gluten-portion ?chx ?brx ?cox)
+               (allergic_gluten ?ch)
+               (no_gluten_bread ?br)
+               (no_gluten_content ?co)
+               (< ?chx ?ch)
+               (< ?brx ?br)
+               (< ?cox ?co)
+               (not (exists (?chy - child) (and (< ?chx ?chy) (< ?chy ?ch))))
+               (not (exists (?bry - bread-portion) (and (< ?brx ?bry) (< ?bry ?br))))
+               (not (exists (?coy - content-portion) (and (< ?cox ?coy) (< ?coy ?co)))))))
 (:axiom (illegal)
-  (exists (?ch - child ?br - bread-portion ?co - content-portion)
-          (and (matching-child-bread-content ?ch ?br ?co) (allergic_gluten ?ch)
-               (not (no_gluten_bread ?br)) (not (no_gluten_content ?co)))))
+  (exists (?ch - child)
+          (not (exists (?br - bread-portion ?co - content-portion)
+                       (matching-no-gluten-portion ?ch ?br ?co)))))
 (:axiom (illegal)
-  (exists (?ch - child ?br - bread-portion ?co - content-portion)
-          (and (matching-child-bread-content ?ch ?br ?co) (not (allergic_gluten ?ch))
-               (no_gluten_bread ?br) (no_gluten_content ?co))))
+  (exists (?br - bread-portion)
+          (not (exists (?ch - child ?co - content-portion)
+                       (matching-no-gluten-portion ?ch ?br ?co)))))
+(:axiom (illegal)
+  (exists (?co - content-portion)
+          (not (exists (?ch - child ?br - bread-portion)
+                       (matching-no-gluten-portion ?ch ?br ?co)))))
 
 ;; there are at most three tables
 (:axiom
@@ -213,9 +249,5 @@
 (:axiom (illegal) (exists (?s - sandwich) (at_kitchen_sandwich ?s)))
 (:axiom (illegal) (exists (?s - sandwich) (no_gluten_sandwich ?s)))
 (:axiom (illegal) (exists (?s - sandwich ?t - tray) (ontray ?s ?t)))
-
-;; hack to make instance generator rewrite this correctly  to instance-specific
-;; STRIPS goals
-(:axiom (illegal) (exists (?c - child) (not (served_g ?c))))
 
 )
