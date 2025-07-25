@@ -70,16 +70,16 @@ This generates a single instance where
 **Usage with type information and cardinality constraints:**
 
 Instead of giving the number of objects (via `-n`) that the generated instances
-shall have you can use the `-e` option. With this option you can give
+shall have you can use the `-c` option. With this option you can give
 information about how many objects of certain types the generated instances
 shall have and specify cardinality-constraints. This option expects a JSON file
-as described in the section [Format of Extended-Input
-File](#format-of-extended-input-file). You can find two examples for such JSON
+as described in the section [Format of JSON config
+File](#format-of-json-config-file). You can find two examples for such JSON
 files in the `examples` folder.
 
 Example call:
 ```
-python3 -m instance_generator instance-generator/examples/blocksworld-domain.pddl -e instance-generator/examples/blocksworld-universe.json
+python3 -m instance_generator instance-generator/examples/blocksworld-domain.pddl -c instance-generator/examples/blocksworld-config.json
 ```
 
 
@@ -102,20 +102,20 @@ Something of Everything. In Proceedings of the 26th European Conference on
 Artificial Intelligence (ECAI 2023), pp. 271 - 278. 2023.*
 
 
-## Format of Extended-Input File
+## Format of JSON Config File
 
-If you call the instance generator with the `-e` option (instead of `-n`) it
-expects an *extended-input file*. With this file you can specify the *types*
-of some or all objects that the generated instances will include. Furthermore,
-you can specify *cardinality constraints* that the generated instances will
-follow, i. e. how many atoms of given predicates shall be included in the
-generated instances.
+If you call the instance generator with the `-c` option (instead of `-n`) it
+expects a JSON file of a specific format. With this file you can specify the
+*types* of some or all objects that the generated instances will include.
+Furthermore, you can specify *cardinality constraints* that the generated
+instances will follow, i. e. how many atoms of given predicates shall be
+included in the generated instances.
 
-The `examples` folder includes such an extended-input file for the Blocksworld
+The `examples` folder includes such a JSON config file for the Blocksworld
 domain (`blocksworld-universe.json`) and for the Childsnack domain
 (`childsnack-universe.json`).
 
-The extended-input file is a [JSON](https://www.json.org/json-en.html) file
+The JSON config file is a [JSON](https://www.json.org/json-en.html) file
 with a key `universe` and, optionally, a key `cardinality_constraints`. The
 values for both keys are dictionaries that must be structured as follows:
 
@@ -135,7 +135,7 @@ usually 0). The second integer specifies the (inclusive) upper bound (-1
 corresponds to the maximal possible value, i. e., $$n^u$$ for $$n$$-ary
 predicates over a universe of size $$u$$).
 
-An extended-input file for the blocksworld domain could for example look like
+A JSON config file for the Blocksworld domain could for example look like
 this:
 
 ```
