@@ -24,45 +24,45 @@ def get_command_line_arguments():
             "domain",
             help="PDDL domain file for which instances will be generated")
     arg_group = parser.add_mutually_exclusive_group(required=True)
-    arg_group.add_argument("-n","--num_objects", type=int,
+    arg_group.add_argument("-n","--num-objects", type=int,
                         help="number of objects the instances will have")
-    arg_group.add_argument("-e", "--extended_input",
+    arg_group.add_argument("-c", "--json-config",
                            help="JSON file specifying how many objects of which types the instances will have, and optionally constraints on how many atoms of a certain predicate there will be")
     parser.add_argument("num_instances", nargs='?', type=int, default=1,
                         help="maximum number of instances that will be generated (1 by default, 0 means all instances will be generated)")
     parser.add_argument("--representative", action="store_true",
                         help="generate a set of instances that is representative for the given domain")
-    parser.add_argument("-o", "--output_file_prefix",
+    parser.add_argument("-o", "--output-file-prefix",
                         help="write the generated instances to files whose names begin with the given prefix")
     parser.add_argument("--ground-and-simplify-goal", action="store_true",
                         help="ground first-order goal and simplify it wrt static atoms. In many cases, this will lead to STRIPS goals.")
-    parser.add_argument("--print_normalized_domain", action="store_true",
+    parser.add_argument("--print-normalized-domain", action="store_true",
                         help="additionally print the normalized PDDL domain")
-    parser.add_argument("--print_translated_domain", action="store_true",
+    parser.add_argument("--print-translated-domain", action="store_true",
                         help="additionally print the ASP program that the input PDDL domain is translated to")
-    parser.add_argument("--print_asp_model", action="store_true",
+    parser.add_argument("--print-asp-model", action="store_true",
                         help="for each generated instance additionally print the ASP model it is based on (including the derived predicates and helper predicates from the Fast Downward translator)")
-    parser.add_argument("--rand_freq", type=float,
-                        help="let clingo make random decisions with probability RAND_FREQ") # TODO improve help-message
+    parser.add_argument("--rand-freq", type=float,
+                        help="let clingo make random decisions with probability RAND_FREQ")
     return parser.parse_args()
 
 
-def load_and_validate_extended_input(extended_input_file_path: str):
-    # loads the extended input file (JSON) and checks if it has the correct
-    # format (the basic format is defined by the ExtendedInput class)
-    class ExtendedInput(BaseModel):
+def load_and_validate_json_config(json_config_file_path: str):
+    # loads the JSON config file and checks if it has the correct
+    # format (the basic format is defined by the JsonConfig class)
+    class JsonConfig(BaseModel):
         universe: Dict[str, int]
         cardinality_constraints: Optional[Dict[str,List[int]]] = {}
 
-    file = open(extended_input_file_path)
+    file = open(json_config_file_path)
     data_string = '\n'.join(file.readlines())
-    extended_input = dict(ExtendedInput.model_validate_json(data_string))
+    json_config = dict(JsonConfig.model_validate_json(data_string))
     for predicate_name, interval in \
-            extended_input["cardinality_constraints"].items():
+            json_config["cardinality_constraints"].items():
         if len(interval) != 2:
             print(f"The list given as interval in the cardinality constraints for {predicate_name} has length {len(interval)} but must have length 2.")
             sys.exit(1)
-    return extended_input
+    return json_config
 
 
 # translation functions to get from ASP back to PDDL
@@ -384,6 +384,7 @@ def main():
     memory_measurement = profiling.MemoryMeasurement()
 
     args = get_command_line_arguments()
+    print(args)
     if args.num_instances < 0:
         print(f"num_instances must be a non-negative number but is {args.num_instances}.")
         sys.exit(1)
@@ -406,9 +407,9 @@ def main():
             universe = {"object": args.num_objects} # generic PDDL type "object"
             translated_domain = asp_translator.translate(domain, universe, {})
         else:
-            extended_input = load_and_validate_extended_input(args.extended_input)
-            universe = extended_input["universe"]
-            constraints = extended_input["cardinality_constraints"]
+            json_config = load_and_validate_json_config(args.json_config)
+            universe = json_config["universe"]
+            constraints = json_config["cardinality_constraints"]
             translated_domain = asp_translator.translate(domain, universe,
                                                          constraints)
     if args.print_translated_domain:
