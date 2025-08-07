@@ -58,6 +58,11 @@ class Condition:
         for part in self.parts:
             result |= part.free_variables()
         return result
+    def predicates(self):
+        result = set()
+        for part in self.parts:
+            result |= part.predicates()
+        return result
     def has_disjunction(self):
         for part in self.parts:
             if part.has_disjunction():
@@ -326,6 +331,8 @@ class Literal(Condition):
         return self.__class__(self.predicate, new_args)
     def free_variables(self):
         return {arg for arg in self.args if arg[0] == "?"}
+    def predicates(self):
+        return {self.predicate}
     def asp_string(self, predicate_conversion, term_conversion):
         if self.predicate == "=":
             assert len(self.args) == 2

@@ -186,18 +186,6 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain,
     objects_string = "(:objects\n  " + '\n  '.join(objects_strings) + "\n)"
     instance_parts.append(objects_string)
 
-    assert(len(domain.functions) <= 1)
-      # the instance generator does not handle functions except for action
-      # costs
-    has_action_costs = len(domain.functions) == 1
-
-    if has_action_costs:
-        initial_state.insert(0, "(= (total-cost) 0)")
-    initial_state_string = "(:init\n  " + '\n  '.join(atom.pddl_string() for
-                                                      atom in initial_state) + "\n)"
-    instance_parts.append(initial_state_string)
-
-    # TODO make this less hacky, see todo in extract_objects_and_initial_state
     if ground_goal:
         derived_predicates = [axiom.name for axiom in domain.axioms]
         objects_by_type = get_objects_by_type(typed_objects, domain.types)
@@ -206,8 +194,23 @@ def create_instance(asp_model, model_number: int, domain: pddl.Domain,
                                            derived_predicates, objects_by_type)
         goal = grounded_goal.simplified()
         goal = f"(:goal\n {goal.pddl_string()}\n)"
+        still_relevant_predicates = domain.affected_predicates | domain.condition_predicates
+        initial_state = [a for a in initial_state
+                         if a.predicate in still_relevant_predicates]
     else:
         goal = f"(:goal\n  {domain.goal.pddl_string()}\n)"
+
+    assert(len(domain.functions) <= 1)
+   
+    # the instance generator does not handle functions except for action
+    # costs
+    has_action_costs = len(domain.functions) == 1
+
+    if has_action_costs:
+        initial_state.insert(0, "(= (total-cost) 0)")
+    initial_state_string = "(:init\n  " + '\n  '.join(atom.pddl_string() for
+                                                      atom in initial_state) + "\n)"
+    instance_parts.append(initial_state_string)
     instance_parts.append(goal)
 
     if has_action_costs:

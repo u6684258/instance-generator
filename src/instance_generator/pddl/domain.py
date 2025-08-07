@@ -16,7 +16,8 @@ class Domain:
                  List[Predicate], functions: List[Function],
                  goal: Condition,
                  axioms: List[Axiom],
-                 affected_predicates: Set[str]) -> None:
+                 affected_predicates: Set[str],
+                 condition_predicates: Set[str]) -> None:
         self.domain_name = domain_name
         self.legality_predicate = legality_predicate
         self.requirements = requirements
@@ -27,6 +28,7 @@ class Domain:
         self.goal = goal
         self.axioms = axioms
         self.affected_predicates = affected_predicates
+        self.condition_predicates = condition_predicates
         self.axiom_counter = 0
 
     def add_axiom(self, parameters, condition, legality):
