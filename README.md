@@ -15,12 +15,12 @@ PDDL instances as output.
 
 After cloning the repository, the instance generator can be installed via
 [pip](https://pip.pypa.io/en/stable/installation/). The [following
-section](#recommended-steps) gives a step-by-step explanation for this setup. 
+section](#recommended-steps) gives a step-by-step explanation for this. 
 
-If you want to change the code of the instance generator and immediately test
-it, we suggest installing the instance generator with the `-e` option of pip,
-or (install its dependencies manually and) call it directly from the src-folder
-(`cd src && python3 -m instance_generator`).
+If you plan to change the code of the instance generator and immediately test
+the changes, we recommend installing the instance generator with the `-e`
+option of pip, or (installing its dependencies manually and) calling it
+directly from the src-folder (`cd src && python3 -m instance_generator`).
 
 ### Recommended Steps
 
@@ -41,7 +41,7 @@ source instance-generator/.venv/bin/activate
 
 Install the instance generator (and its dependencies):
 ```
-pip install instance-generator
+pip install instance-generator/
 ```
 
 Call the help-message of the instance generator to test the installation:
