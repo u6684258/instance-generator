@@ -25,9 +25,8 @@ directly from the src-folder (`cd src && python3 -m instance_generator`).
 ### Recommended Steps
 
 Clone the repository:
-**TODO**
 ```
-git clone ... instance-generator
+git clone https://github.com/aibasel/instance-generator.git instance-generator
 ```
 
 Create a virtual environment and activate it (this step is not necessary but
