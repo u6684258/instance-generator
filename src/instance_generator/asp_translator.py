@@ -2,7 +2,7 @@ from collections import defaultdict
 from itertools import combinations
 import sys
 
-from . import pddl
+import pddl
 
 
 def replace_special_symbols(string: str):

@@ -11,11 +11,11 @@ from clingo import Control
 from clingo.symbol import Symbol, SymbolType
 from pydantic import BaseModel
 
-from . import asp_translator
-from . import pddl
-from . import pddl_parser
-from . import profiling
-from .axiom_normalizer import normalize_axioms
+import asp_translator
+import pddl
+import pddl_parser
+import profiling
+from axiom_normalizer import normalize_axioms
 
 
 def get_command_line_arguments():
