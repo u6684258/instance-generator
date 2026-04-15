@@ -37,7 +37,7 @@ class Axiom:
                     [f"{predicate_conversion(param.type_name)}({term_conversion(param.name)})"
                         for param in self.parameters])
             if self.cardinality:
-                body = f"{{ {body + ": " + parameter_type_atoms} }} = {self.cardinality[0]}"  # TODO: In fact, currently the cardinality for all variables are the same
+                body = f"{{ {body + ': ' + parameter_type_atoms} }} = {self.cardinality[0]}"  # TODO: In fact, currently the cardinality for all variables are the same
             else:
                 body = body + ", " + parameter_type_atoms
 
