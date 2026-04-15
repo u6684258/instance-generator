@@ -1,9 +1,9 @@
 import contextlib
 import sys
 
-from pddl_parser import graph
-import pddl
-from pddl_parser.parse_error import ParseError
+from . import graph
+from .. import pddl
+from .parse_error import ParseError
 
 TYPED_LIST_SEPARATOR = "-"
 
