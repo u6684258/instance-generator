@@ -273,7 +273,7 @@ class ExistentialCondition(QuantifiedCondition):
         self.parts[0].instantiate(var_mapping, init_facts, fluent_facts, result)
     def ground(self, var_mapping, init_facts, affected_predicates,
                derived_predicates, typed_objects):
-        part_instantiations = self._ground_aux(self, var_mapping, init_facts,
+        part_instantiations = self._ground_aux(var_mapping, init_facts,
                                                affected_predicates,
                                                derived_predicates,
                                                typed_objects)
@@ -286,6 +286,74 @@ class ExistentialCondition(QuantifiedCondition):
                       self.parameters]
         parts = [part.pddl_string() for part in self.parts]
         return f"(exists ({' '.join(parameters)}) {' '.join(parts)})"
+
+class QuantifiedEqualCondition(QuantifiedCondition):
+    def __init__(self, parameters: List[TypedObject], parts: List[Condition], counts: List[int]) -> None:
+        super().__init__(parameters, parts)
+        self.counts = counts
+        self.hash = hash((self.__class__, self.parameters, self.parts, tuple(self.counts)))
+
+    def uniquify_variables(self, type_map, renamings={}):
+        renamings = dict(renamings) # Create a copy.
+        new_parameters = [par.uniquify_name(type_map, renamings)
+                          for par in self.parameters]
+        new_parts = [self.parts[0].uniquify_variables(type_map, renamings)]
+        return self.__class__(new_parameters, new_parts, self.counts)
+
+    def change_parts(self, parts):
+        return self.__class__(list(self.parameters), parts, self.counts)
+
+class UniversalEqualCondition(QuantifiedEqualCondition):
+    def _untyped(self, parts):
+        type_literals = [par.get_atom().negate() for par in self.parameters]
+        return UniversalEqualCondition(list(self.parameters),
+                                  [Disjunction(type_literals + parts)], self.counts)
+    def negate(self):
+        return ExistentialEqualCondition(list(self.parameters), [p.negate() for p in self.parts], self.counts)
+    def has_universal_part(self):
+        return True
+    def pddl_string(self):
+        parameters = [f"{param.name} - {param.type_name}" for param in
+                      self.parameters]
+        parts = [part.pddl_string() for part in self.parts]
+        return f"(forallEqual ({' '.join(parameters)}) ({' '.join([str(i) for i in self.counts])}) {' '.join(parts)})"
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        part_instantiations = self._ground_aux(var_mapping, init_facts,
+                                               affected_predicates,
+                                               derived_predicates,
+                                               typed_objects)
+        return Conjunction(part_instantiations)
+
+class ExistentialEqualCondition(QuantifiedEqualCondition):
+    def _untyped(self, parts):
+        type_literals = [par.get_atom() for par in self.parameters]
+        return ExistentialEqualCondition(list(self.parameters),
+                                    [Conjunction(type_literals + parts)], self.counts)
+
+    def negate(self):
+        return UniversalEqualCondition(list(self.parameters), [p.negate() for p in self.parts], self.counts)
+
+    def instantiate(self, var_mapping, init_facts, fluent_facts, result):
+        assert not result, "Condition not simplified"
+        self.parts[0].instantiate(var_mapping, init_facts, fluent_facts, result)
+
+    def ground(self, var_mapping, init_facts, affected_predicates,
+               derived_predicates, typed_objects):
+        part_instantiations = self._ground_aux(var_mapping, init_facts,
+                                               affected_predicates,
+                                               derived_predicates,
+                                               typed_objects)
+        return Disjunction(part_instantiations)
+
+    def has_existential_part(self):
+        return True
+
+    def pddl_string(self):
+        parameters = [f"{param.name} - {param.type_name}" for param in
+                      self.parameters]
+        parts = [part.pddl_string() for part in self.parts]
+        return f"(existsEqual ({' '.join(parameters)}) ({' '.join([str(i) for i in self.counts])}) {' '.join(parts)})"
 
 class Literal(Condition):
     # Defining __eq__ blocks inheritance of __hash__, so must set it explicitly.

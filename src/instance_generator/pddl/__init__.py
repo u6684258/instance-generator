@@ -19,3 +19,5 @@ from .conditions import Conjunction
 from .conditions import Disjunction
 from .conditions import UniversalCondition
 from .conditions import ExistentialCondition
+from .conditions import UniversalEqualCondition
+from .conditions import ExistentialEqualCondition

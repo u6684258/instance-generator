@@ -26,6 +26,7 @@ SYNTAX_CONDITION_OR = "(or CONDITION*)"
 SYNTAX_CONDITION_IMPLY = "(imply CONDITION CONDITION)"
 SYNTAX_CONDITION_NOT = "(not CONDITION)"
 SYNTAX_CONDITION_FORALL_EXISTS = "({forall, exists} VARIABLES CONDITION)"
+SYNTAX_CONDITION_EXISTS_EQUAL = "(existsEqual VARIABLES COUNTS CONDITION)"
 
 SYNTAX_EFFECT_FORALL = "(forall VARIABLES EFFECT)"
 SYNTAX_EFFECT_WHEN = "(when CONDITION EFFECT)"
@@ -238,6 +239,25 @@ def parse_condition_aux(context, alist, negated, type_dict, predicate_dict):
             )
         parameters = parse_typed_list(context, alist[1])
         args = [alist[2]]
+    elif tag in ("existsequal", "forallequal"):
+        if len(alist) != 4:
+            context.error("'existsEqual' and 'forallEqual' expects exactly three arguments.",
+                          syntax=SYNTAX_CONDITION_EXISTS_EQUAL)
+        if not isinstance(alist[1], list) or not alist[1] or not isinstance(alist[2], list) or not alist[2]:
+            context.error(
+                "The first and second arguments (VARIABLES) of 'existsEqual' and 'forallEqual' are "
+                "expected to be non-empty blocks.",
+                syntax=SYNTAX_CONDITION_EXISTS_EQUAL
+            )
+        if not len(alist[1]) / len(alist[2]) == 3:
+            context.error(
+                "The number of (VARIABLES) in first argument of 'existsEqual' and 'forallEqual' is "
+                "expected to be the same as the number of (COUNTS) in second argument.",
+                syntax=SYNTAX_CONDITION_EXISTS_EQUAL
+            )
+        parameters = parse_typed_list(context, alist[1])
+        parameter_counts = [int(i) for i in alist[2]]
+        args = [alist[3]]
     elif tag in predicate_dict or tag in type_dict:
         return parse_literal(context, alist, type_dict, predicate_dict, negated=negated)
     else:
@@ -267,8 +287,14 @@ def parse_condition_aux(context, alist, negated, type_dict, predicate_dict):
         return pddl.UniversalCondition(parameters, parts)
     elif tag == "exists" and not negated or tag == "forall" and negated:
         return pddl.ExistentialCondition(parameters, parts)
+    elif tag == "forallequal" and not negated or tag == "existsequal" and negated:
+        return pddl.UniversalEqualCondition(parameters, parts, parameter_counts)
+    elif tag == "existsequal" and not negated or tag == "forallequal" and negated:
+        return pddl.ExistentialEqualCondition(parameters, parts, parameter_counts)
     elif tag == "not":
         return parts[0]
+    else:
+        raise SyntaxError("Unexpected tag '%s' with negated=%s" % (tag, negated))
 
 
 def parse_literal(context, alist, type_dict, predicate_dict, negated=False):

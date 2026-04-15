@@ -48,7 +48,7 @@ def axiom_conditions(domain):
 def remove_universal_quantifiers(domain):
     def recurse(condition, is_legality_axiom):
         # Uses new_axioms_by_condition and type_map from surrounding scope.
-        if isinstance(condition, pddl.UniversalCondition):
+        if isinstance(condition, pddl.UniversalCondition) or isinstance(condition, pddl.UniversalEqualCondition):
             axiom_condition = condition.negate()
             parameters = sorted(axiom_condition.free_variables())
             typed_parameters = tuple(pddl.TypedObject(v, type_map[v]) for v in parameters)
@@ -75,7 +75,7 @@ def remove_universal_quantifiers(domain):
 
 
 # [2] Pull disjunctions to the root of the condition.
-#
+# TODO: deal with counting existential quantifiers
 # After removing universal quantifiers, the (k-ary generalization of the)
 # following rules suffice for doing that:
 # (1) or(phi, or(psi, psi'))      ==  or(phi, psi, psi')
@@ -136,7 +136,7 @@ def split_disjunctions(domain):
             proxy.delete_owner(domain)
 
 # [4] Pull existential quantifiers out of conjunctions and group them.
-#
+# TODO: Handle mixture of existential quantifiers and counting existential quantifiers
 # After removing universal quantifiers and creating the disjunctive form,
 # only the following (representatives of) rules are needed:
 # (1) exists(vars, exists(vars', phi))  ==  exists(vars + vars', phi)
@@ -183,6 +183,8 @@ def eliminate_existential_quantifiers_from_axioms(domain):
     # Note: This is very redundant with the corresponding method for
     # actions and could easily be merged if axioms and actions were
     # unified.
+    # Assumption: counting existential quantifiers are not mixed with normal existential quantifiers.
+    # TODO: Handle mixture of existential quantifiers and counting existential quantifiers
     for axiom in domain.axioms:
         precond = axiom.condition
         if isinstance(precond, pddl.ExistentialCondition):
@@ -192,6 +194,11 @@ def eliminate_existential_quantifiers_from_axioms(domain):
             axiom.parameters = list(axiom.parameters)
             axiom.parameters.extend(precond.parameters)
             axiom.condition = precond.parts[0]
+        if isinstance(precond, pddl.ExistentialEqualCondition):
+            assert len(axiom.parameters) == 0, "Mixture of existential quantifiers and counting existential quantifiers is not supported."
+            axiom.parameters = list(precond.parameters)
+            axiom.condition = precond.parts[0]
+            axiom.cardinality = list(precond.counts)
 
 
 # Combine Steps [1], [2], [3], [4], [5]
